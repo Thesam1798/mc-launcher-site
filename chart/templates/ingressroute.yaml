@@ -1,10 +1,17 @@
-# L'IngressRoute vit dans le namespace de Traefik, comme toutes les autres du
-# cluster, et pointe vers le service dans son propre namespace.
+# L'IngressRoute vit dans le namespace de l'application, pas dans celui de
+# Traefik. La convention du cluster est l'inverse, mais elle ne tient pas en
+# multi-environnement : le nom de la ressource serait identique pour dev,
+# preprod et prod dans un namespace partagé, et Helm refuse qu'une release
+# s'approprie une ressource détenue par une autre.
+#
+# Traefik est configuré avec kubernetesCRD sans restriction de namespace et
+# allowCrossNamespace, il la voit donc ici et peut pointer vers le middleware
+# resté dans traefik-system.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: mc-launcher-site
-  namespace: {{ .Values.traefikNamespace }}
+  namespace: {{ .Values.namespace }}
   labels:
     {{- include "mc-launcher-site.labels" . | nindent 4 }}
 spec:
