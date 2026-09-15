@@ -1,101 +1,78 @@
-name: Deploy mc-launcher.ggy.info
+name: Déployer le site
 
-# Le chart est déployé sur le cluster K3s de samflix :
-#   git push (main) ─► runner GitHub ─► rsync du chart ─► ssh « helm upgrade »
+# Correspondance branche → environnement :
+#   dev        → dev      (dev.mc-launcher.ggy.info)
+#   main       → preprod  (preprod.mc-launcher.ggy.info)
+#   tag v*     → prod     (mc-launcher.ggy.info)
 #
-# helm tourne SUR LE SERVEUR : le kubeconfig K3s y pointe sur 127.0.0.1:6443,
-# et le port 6443 est volontairement fermé depuis l'extérieur.
-#
-# Secrets requis : SSH_HOST, SSH_USER, SSH_PORT, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS
-# La clé est propre à ce dépôt, distincte de celle de k8s-samflix.
+# La prod n'est jamais atteinte par un simple push : il faut poser un tag, ce
+# que toi seul peux faire. C'est la barrière d'approbation du pauvre, les
+# règles de protection d'environnement étant réservées au plan Enterprise.
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - "chart/**"
       - ".github/workflows/deploy.yml"
+    tags: ["v*"]
   workflow_dispatch:
-
-# Un seul déploiement à la fois, et on n'interrompt pas celui en cours.
-concurrency:
-  group: deploy-mc-launcher-site
-  cancel-in-progress: false
-
-permissions:
-  contents: read
-
-env:
-  # Sous le home de l'utilisateur deploy, et non /opt : ce dernier n'est pas
-  # inscriptible sans root, et la CI n'a aucune raison d'en avoir besoin.
-  DEPLOY_PATH: mc-launcher-site
-  RELEASE: mc-launcher-site
-  NAMESPACE: mc-launcher
+    inputs:
+      environment:
+        description: Environnement cible
+        type: choice
+        options: [dev, preprod, prod]
+        default: dev
 
 jobs:
-  deploy:
-    name: helm upgrade via SSH
+  prepare:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 10
+    outputs:
+      environment: ${{ steps.map.outputs.environment }}
+      namespace: ${{ steps.map.outputs.namespace }}
+      set: ${{ steps.map.outputs.set }}
+      url: ${{ steps.map.outputs.url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Prepare SSH key & known_hosts
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      - id: map
         run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            ENV=prod
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
+            ENV=dev
+          else
+            ENV=preprod
+          fi
 
-      - name: Sync chart to server
-        env:
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-        run: |
-          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
-            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" "mkdir -p \"$DEPLOY_PATH/chart\""
-          rsync -az --delete \
-            -e "ssh -i ~/.ssh/id_deploy -p $SSH_PORT -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes" \
-            ./chart/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/chart/"
+          case "$ENV" in
+            dev)
+              NS=mc-dev;      HOSTS='{dev.mc-launcher.ggy.info}';     URL=https://dev.mc-launcher.ggy.info ;;
+            preprod)
+              NS=mc-preprod;  HOSTS='{preprod.mc-launcher.ggy.info}'; URL=https://preprod.mc-launcher.ggy.info ;;
+            prod)
+              # Namespace historique : la release y tourne déjà. Le renommer en
+              # mc-prod suppose de désinstaller l'ancienne d'abord, sinon deux
+              # IngressRoute revendiquent le même hôte.
+              NS=mc-launcher; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info ;;
+          esac
 
-      - name: helm upgrade
-        env:
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-        run: |
-          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
-            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
-            -o ServerAliveInterval=30 \
-            "$SSH_USER@$SSH_HOST" \
-            "helm upgrade --install $RELEASE \"\$HOME/$DEPLOY_PATH/chart\" \
-               --namespace $NAMESPACE --create-namespace \
-               -f \"\$HOME/$DEPLOY_PATH/chart/values.yaml\" \
-               --atomic --wait --timeout 5m --cleanup-on-fail"
+          {
+            echo "environment=$ENV"
+            echo "namespace=$NS"
+            echo "set=namespace=$NS,ingress.hosts=$HOSTS"
+            echo "url=$URL"
+          } >> "$GITHUB_OUTPUT"
+          echo "→ $ENV · namespace $NS · $URL" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Vérifier que le site répond
-        run: |
-          # Le HTML et le CSS sont testés séparément : un montage de ConfigMap
-          # mal fait sert « / » correctement tout en refusant les fichiers.
-          sleep 10
-          for url in \
-            https://mc-launcher.ggy.info/ \
-            https://mc-launcher.ggy.info/index.html \
-            https://mc-luncher.ggy.info/ ; do
-            code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$url")
-            echo "$url → HTTP $code" >> "$GITHUB_STEP_SUMMARY"
-            [ "$code" = "200" ] || { echo "::error::$url a répondu $code"; exit 1; }
-          done
-          # Le CSS porte une empreinte dans son nom : on lit l'URL dans la page
-          # plutôt que de la coder en dur.
-          css=$(curl -s -m 20 https://mc-launcher.ggy.info/ | grep -o 'href="/style\.[^"]*\.css"' | cut -d'"' -f2)
-          code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://mc-launcher.ggy.info$css")
-          echo "$css → HTTP $code" >> "$GITHUB_STEP_SUMMARY"
-          [ "$code" = "200" ] || { echo "::error::$css a répondu $code"; exit 1; }
+  deploy:
+    needs: prepare
+    uses: samflix-mc/.github/.github/workflows/deploy-helm.yml@main
+    with:
+      chart-path: chart
+      release: mc-launcher-site
+      namespace: ${{ needs.prepare.outputs.namespace }}
+      environment: ${{ needs.prepare.outputs.environment }}
+      set: ${{ needs.prepare.outputs.set }}
+      verify-url: ${{ needs.prepare.outputs.url }}
+    secrets: inherit
