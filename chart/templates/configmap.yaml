@@ -1,0 +1,16 @@
+# Le site tient dans un ConfigMap : pas de PVC, pas de sauvegarde à gérer, et le
+# contenu est versionné avec le chart. La CSP du cluster étant en
+# script-src/style-src 'self', le CSS est compilé à l'avance (voir src/) et
+# servi depuis le même domaine — aucun CDN externe.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mc-launcher-site
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "mc-launcher-site.labels" . | nindent 4 }}
+data:
+{{- range $path, $_ := .Files.Glob "files/*" }}
+  {{ base $path }}: |
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}

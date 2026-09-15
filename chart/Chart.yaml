@@ -1,0 +1,6 @@
+apiVersion: v2
+name: mc-launcher-site
+description: Page de présentation statique de mc-launcher, servie sur mc-launcher.ggy.info
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

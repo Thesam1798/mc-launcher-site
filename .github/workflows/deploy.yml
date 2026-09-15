@@ -1,0 +1,87 @@
+name: Deploy mc-launcher.ggy.info
+
+# Le chart est déployé sur le cluster K3s de samflix :
+#   git push (main) ─► runner GitHub ─► rsync du chart ─► ssh « helm upgrade »
+#
+# helm tourne SUR LE SERVEUR : le kubeconfig K3s y pointe sur 127.0.0.1:6443,
+# et le port 6443 est volontairement fermé depuis l'extérieur.
+#
+# Secrets requis : SSH_HOST, SSH_USER, SSH_PORT, SSH_PRIVATE_KEY, SSH_KNOWN_HOSTS
+# La clé est propre à ce dépôt, distincte de celle de k8s-samflix.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "chart/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+# Un seul déploiement à la fois, et on n'interrompt pas celui en cours.
+concurrency:
+  group: deploy-mc-launcher-site
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_PATH: /opt/mc-launcher-site
+  RELEASE: mc-launcher-site
+  NAMESPACE: mc-launcher
+
+jobs:
+  deploy:
+    name: helm upgrade via SSH
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Prepare SSH key & known_hosts
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync chart to server
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
+            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH"
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_deploy -p $SSH_PORT -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes" \
+            ./chart/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/chart/"
+
+      - name: helm upgrade
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
+            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
+            -o ServerAliveInterval=30 \
+            "$SSH_USER@$SSH_HOST" \
+            "helm upgrade --install $RELEASE $DEPLOY_PATH/chart \
+               --namespace $NAMESPACE --create-namespace \
+               -f $DEPLOY_PATH/chart/values.yaml \
+               --atomic --wait --timeout 5m --cleanup-on-fail"
+
+      - name: Vérifier que le site répond
+        run: |
+          for host in mc-launcher.ggy.info mc-luncher.ggy.info; do
+            code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://$host")
+            echo "$host → HTTP $code" >> "$GITHUB_STEP_SUMMARY"
+            [ "$code" = "200" ] || { echo "::error::$host a répondu $code"; exit 1; }
+          done

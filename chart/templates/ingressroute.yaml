@@ -1,0 +1,24 @@
+# L'IngressRoute vit dans le namespace de Traefik, comme toutes les autres du
+# cluster, et pointe vers le service dans son propre namespace.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: mc-launcher-site
+  namespace: {{ .Values.traefikNamespace }}
+  labels:
+    {{- include "mc-launcher-site.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: {{ printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts) }}
+      # Site public : en-têtes de sécurité uniquement, aucune authentification.
+      middlewares:
+        - name: {{ .Values.securityHeaders.middlewareName }}
+          namespace: {{ .Values.securityHeaders.middlewareNamespace }}
+      services:
+        - name: mc-launcher-site
+          namespace: {{ .Values.namespace }}
+          port: 80
+  tls: {}

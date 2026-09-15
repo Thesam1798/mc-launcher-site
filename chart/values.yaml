@@ -1,0 +1,38 @@
+# =============================================================================
+# mc-launcher-site — page statique de présentation du projet mc-launcher
+# =============================================================================
+# Chart volontairement séparé de samflix-media : ce site n'a aucun rapport avec
+# la stack média, il ne partage ni son namespace, ni son cycle de vie, ni ses
+# volumes. Le seul point commun est l'ingress Traefik du cluster.
+# =============================================================================
+
+namespace: mc-launcher
+traefikNamespace: traefik-system
+
+# Middleware d'en-têtes de sécurité déployé par samflix-infra.
+securityHeaders:
+  middlewareName: security-headers
+  middlewareNamespace: traefik-system
+
+ingress:
+  # Les deux orthographes sont routées : le DNS de ggy.info est joker, les deux
+  # résolvent, et « luncher » est une faute fréquente sur « launcher ».
+  hosts:
+    - mc-launcher.ggy.info
+    - mc-luncher.ggy.info
+
+image:
+  # static-web-server : binaire Rust statique, image scratch (~3,6 Mo), pas de
+  # shell. Même image et même version que le composant public-share du chart
+  # média — épinglée volontairement, jamais :latest.
+  repository: ghcr.io/static-web-server/static-web-server
+  tag: "2.43.0"
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: 5m
+    memory: 12Mi
+  limits:
+    memory: 48Mi

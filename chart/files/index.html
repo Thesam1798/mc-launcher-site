@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mc-launcher</title>
+<link rel="stylesheet" href="/style.css">
+<script>
+  // Choix de la langue avant le premier rendu, pour éviter que les deux
+  // versions apparaissent successivement. Ordre : choix mémorisé, puis langue
+  // du navigateur, puis anglais.
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("lang"); } catch (e) {}
+    var nav = (navigator.language || "en").toLowerCase();
+    var lang = stored || (nav.indexOf("fr") === 0 ? "fr" : "en");
+    document.documentElement.lang = lang;
+    document.documentElement.dataset.lang = lang;
+  })();
+</script>
+</head>
+<body class="bg-base-100 text-base-content">
+
+<div class="navbar border-b border-base-300 px-4 sm:px-8">
+  <div class="flex-1">
+    <span class="font-mono text-lg font-semibold tracking-tight">mc-launcher</span>
+  </div>
+  <div class="flex-none">
+    <div class="join" role="group" aria-label="Langue / Language">
+      <button class="btn btn-sm join-item" data-set-lang="fr">FR</button>
+      <button class="btn btn-sm join-item" data-set-lang="en">EN</button>
+    </div>
+  </div>
+</div>
+
+<main class="mx-auto max-w-3xl px-4 py-10 sm:px-8 sm:py-16">
+
+  <header class="mb-10">
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <span class="badge badge-warning badge-sm gap-1">
+        <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-3.5"
+  class="lucide lucide-hammer"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9" />
+  <path d="m18 15 4-4" />
+  <path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5" />
+</svg>
+        <span data-lang="fr">En développement</span>
+        <span data-lang="en">In development</span>
+      </span>
+      <span class="badge badge-ghost badge-sm">Minecraft 1.21.1 · NeoForge</span>
+    </div>
+    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">mc-launcher</h1>
+    <p class="mt-3 text-lg opacity-70">
+      <span data-lang="fr">Launcher de bureau pour un serveur Minecraft Java moddé.</span>
+      <span data-lang="en">Desktop launcher for a modded Minecraft Java server.</span>
+    </p>
+  </header>
+
+  <div class="alert alert-warning mb-12">
+    <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-triangle-alert"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+  <path d="M12 9v4" />
+  <path d="M12 17h.01" />
+</svg>
+    <div>
+      <p data-lang="fr">Aucune version n'est distribuée et le serveur n'est pas ouvert. Ce site documente un projet en cours.</p>
+      <p data-lang="en">No build is distributed and the server is not open. This page documents work in progress.</p>
+    </div>
+  </div>
+
+  <section class="mb-12">
+    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
+      <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-boxes"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z" />
+  <path d="m7 16.5-4.74-2.85" />
+  <path d="m7 16.5 5-3" />
+  <path d="M7 16.5v5.17" />
+  <path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z" />
+  <path d="m17 16.5-5-3" />
+  <path d="m17 16.5 4.74-2.85" />
+  <path d="M17 16.5v5.17" />
+  <path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z" />
+  <path d="M12 8 7.26 5.15" />
+  <path d="m12 8 4.74-2.85" />
+  <path d="M12 13.5V8" />
+</svg>
+      <span data-lang="fr">À quoi il sert</span>
+      <span data-lang="en">What it is for</span>
+    </h2>
+    <div data-lang="fr" class="space-y-3 leading-relaxed">
+      <p>Le serveur tourne en 1.21.1 avec NeoForge. Un client doit charger exactement le même jeu de mods que le serveur, sinon la connexion est refusée pour désynchronisation des registres.</p>
+      <p>Installer NeoForge, copier les fichiers dans le bon dossier, puis recommencer à chaque mise à jour : c'est là que la plupart des joueurs abandonnent. Le launcher fait ces étapes à leur place, garde le jeu de mods à jour et ouvre la connexion au serveur.</p>
+    </div>
+    <div data-lang="en" class="space-y-3 leading-relaxed">
+      <p>The server runs Minecraft 1.21.1 with NeoForge. A client must load exactly the same mod set as the server, otherwise the connection is refused because the registries no longer match.</p>
+      <p>Installing NeoForge, copying files into the right folder, then doing it again on every update is where most players give up. The launcher does those steps for them, keeps the mod set current and connects them to the server.</p>
+    </div>
+  </section>
+
+  <section class="mb-12">
+    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
+      <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-key-round"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+  <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+</svg>
+      <span data-lang="fr">Connexion au compte</span>
+      <span data-lang="en">Signing in</span>
+    </h2>
+    <div data-lang="fr" class="space-y-3 leading-relaxed">
+      <p>Le launcher n'a pas de système de comptes. Il ne stocke ni ne voit aucun mot de passe. Le joueur s'identifie chez Microsoft avec le flux OAuth&nbsp;2.0 <em>device code</em>&nbsp;: il saisit un code sur une page Microsoft, s'authentifie normalement, MFA comprise, et le launcher ne reçoit qu'un jeton.</p>
+    </div>
+    <div data-lang="en" class="space-y-3 leading-relaxed">
+      <p>The launcher has no account system of its own. It never sees or stores a password. The player signs in with Microsoft through the OAuth&nbsp;2.0 <em>device code</em> flow: they enter a code on a Microsoft page, authenticate as usual including MFA, and the launcher only ever receives a token.</p>
+    </div>
+
+    <div class="mt-5 overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th class="w-8">#</th>
+            <th><span data-lang="fr">Service</span><span data-lang="en">Service</span></th>
+            <th><span data-lang="fr">Rôle</span><span data-lang="en">Purpose</span></th>
+          </tr>
+        </thead>
+        <tbody class="align-top">
+          <tr>
+            <td>1</td>
+            <td class="font-mono text-xs">login.microsoftonline.com</td>
+            <td><span data-lang="fr">Device code, portée <code>XboxLive.signin</code></span><span data-lang="en">Device code, scope <code>XboxLive.signin</code></span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td class="font-mono text-xs">user.auth.xboxlive.com</td>
+            <td><span data-lang="fr">Jeton Xbox Live</span><span data-lang="en">Xbox Live token</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td class="font-mono text-xs">xsts.auth.xboxlive.com</td>
+            <td><span data-lang="fr">Autorisation XSTS</span><span data-lang="en">XSTS authorization</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td class="font-mono text-xs">api.minecraftservices.com<wbr>/authentication/login_with_xbox</td>
+            <td><span data-lang="fr">Jeton de session Minecraft</span><span data-lang="en">Minecraft session token</span></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td class="font-mono text-xs">…/entitlements/mcstore</td>
+            <td><span data-lang="fr">Vérification de la licence&nbsp;; sans licence Java Edition valide, la connexion est refusée</span><span data-lang="en">Ownership check; an account without a valid Java Edition licence is refused</span></td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td class="font-mono text-xs">…/minecraft/profile</td>
+            <td><span data-lang="fr">Pseudo et UUID</span><span data-lang="en">Profile name and UUID</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-5 rounded-box border border-base-300 p-4 text-sm leading-relaxed">
+      <p data-lang="fr">Aucun contrôle de sécurité, d'authentification ou de licence n'est contourné, et aucune fonction de sécurité n'est désactivée. Le launcher n'utilise pas de secret client, et aucun identifiant de joueur ne transite par notre infrastructure.</p>
+      <p data-lang="en">No security, authentication or licence check is bypassed, and no safety feature is disabled. The launcher uses no client secret, and no player credential ever passes through our infrastructure.</p>
+    </div>
+  </section>
+
+  <section class="mb-12">
+    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
+      <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-list-checks"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M13 5h8" />
+  <path d="M13 12h8" />
+  <path d="M13 19h8" />
+  <path d="m3 17 2 2 4-4" />
+  <path d="m3 7 2 2 4-4" />
+</svg>
+      <span data-lang="fr">Avancement</span>
+      <span data-lang="en">Status</span>
+    </h2>
+    <ul class="space-y-2.5">
+      <li class="flex items-start gap-2.5">
+        <span class="mt-0.5 text-success"><!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-circle-check"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="10" />
+  <path d="m16 9-5.5 5.5L8 12" />
+</svg></span>
+        <span><span data-lang="fr">Chaîne d'authentification en Rust — écrite, compile, testée jusqu'au dernier appel</span><span data-lang="en">Authentication chain in Rust — written, compiles, tested up to the final call</span></span>
+      </li>
+      <li class="flex items-start gap-2.5">
+        <span class="mt-0.5 text-warning"><!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-clock"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="10" />
+  <path d="M12 6v6l4 2" />
+</svg></span>
+        <span><span data-lang="fr">Approbation de l'identifiant d'application par Microsoft — demandée</span><span data-lang="en">Microsoft application ID approval — requested</span></span>
+      </li>
+      <li class="flex items-start gap-2.5">
+        <span class="mt-0.5 opacity-40"><!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-circle-dashed"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M10.1 2.182a10 10 0 0 1 3.8 0" />
+  <path d="M13.9 21.818a10 10 0 0 1-3.8 0" />
+  <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7" />
+  <path d="M2.182 13.9a10 10 0 0 1 0-3.8" />
+  <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69" />
+  <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
+  <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
+  <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+</svg></span>
+        <span><span data-lang="fr">Installation du jeu de mods côté client</span><span data-lang="en">Client-side mod set installation</span></span>
+      </li>
+      <li class="flex items-start gap-2.5">
+        <span class="mt-0.5 opacity-40"><!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-circle-dashed"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M10.1 2.182a10 10 0 0 1 3.8 0" />
+  <path d="M13.9 21.818a10 10 0 0 1-3.8 0" />
+  <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7" />
+  <path d="M2.182 13.9a10 10 0 0 1 0-3.8" />
+  <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69" />
+  <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
+  <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
+  <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+</svg></span>
+        <span><span data-lang="fr">Lancement du jeu et connexion directe au serveur</span><span data-lang="en">Game launch and direct server connection</span></span>
+      </li>
+      <li class="flex items-start gap-2.5">
+        <span class="mt-0.5 opacity-40"><!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-circle-dashed"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M10.1 2.182a10 10 0 0 1 3.8 0" />
+  <path d="M13.9 21.818a10 10 0 0 1-3.8 0" />
+  <path d="M17.609 3.721a10 10 0 0 1 2.69 2.7" />
+  <path d="M2.182 13.9a10 10 0 0 1 0-3.8" />
+  <path d="M20.279 17.609a10 10 0 0 1-2.7 2.69" />
+  <path d="M21.818 10.1a10 10 0 0 1 0 3.8" />
+  <path d="M3.721 6.391a10 10 0 0 1 2.7-2.69" />
+  <path d="M6.391 20.279a10 10 0 0 1-2.69-2.7" />
+</svg></span>
+        <span><span data-lang="fr">Interface</span><span data-lang="en">User interface</span></span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="mb-4">
+    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
+      <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-5"
+  class="lucide lucide-code"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m16 18 6-6-6-6" />
+  <path d="m8 6-6 6 6 6" />
+</svg>
+      <span data-lang="fr">Code source</span>
+      <span data-lang="en">Source code</span>
+    </h2>
+    <ul class="space-y-2">
+      <li>
+        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-launcher">
+          <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-4"
+  class="lucide lucide-folder-git-2"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M18 19a5 5 0 0 1-5-5v8" />
+  <path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" />
+  <circle cx="13" cy="12" r="2" />
+  <circle cx="20" cy="19" r="2" />
+</svg> Thesam1798/mc-launcher <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-3.5 opacity-50"
+  class="lucide lucide-external-link"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15 3h6v6" />
+  <path d="M10 14 21 3" />
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+</svg>
+        </a>
+        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Le launcher</span><span data-lang="en">The launcher</span></span>
+      </li>
+      <li>
+        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-server-docker">
+          <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-4"
+  class="lucide lucide-folder-git-2"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M18 19a5 5 0 0 1-5-5v8" />
+  <path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" />
+  <circle cx="13" cy="12" r="2" />
+  <circle cx="20" cy="19" r="2" />
+</svg> Thesam1798/mc-server-docker <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-3.5 opacity-50"
+  class="lucide lucide-external-link"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15 3h6v6" />
+  <path d="M10 14 21 3" />
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+</svg>
+        </a>
+        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Le réseau serveur, en Docker Compose</span><span data-lang="en">The server network, in Docker Compose</span></span>
+      </li>
+      <li>
+        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-launcher-site">
+          <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-4"
+  class="lucide lucide-folder-git-2"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M18 19a5 5 0 0 1-5-5v8" />
+  <path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5" />
+  <circle cx="13" cy="12" r="2" />
+  <circle cx="20" cy="19" r="2" />
+</svg> Thesam1798/mc-launcher-site <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-3.5 opacity-50"
+  class="lucide lucide-external-link"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="M15 3h6v6" />
+  <path d="M10 14 21 3" />
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+</svg>
+        </a>
+        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Ce site</span><span data-lang="en">This page</span></span>
+      </li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="border-t border-base-300 px-4 py-8 text-sm opacity-60 sm:px-8">
+  <div class="mx-auto max-w-3xl space-y-1">
+    <p class="inline-flex items-center gap-2">
+      <!-- @license lucide-static v1.46.0 - ISC -->
+<svg aria-hidden="true" class="size-4"
+  class="lucide lucide-mail"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" />
+  <rect x="2" y="4" width="20" height="16" rx="2" />
+</svg>
+      <a class="link link-hover" href="mailto:alexandre@debris.ovh">alexandre@debris.ovh</a>
+    </p>
+    <p data-lang="fr">Projet personnel, non affilié à Mojang ni à Microsoft.</p>
+    <p data-lang="en">Personal project, not affiliated with Mojang or Microsoft.</p>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll("[data-set-lang]");
+    function apply(lang) {
+      document.documentElement.lang = lang;
+      document.documentElement.dataset.lang = lang;
+      buttons.forEach(function (b) {
+        b.classList.toggle("btn-active", b.dataset.setLang === lang);
+      });
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        var lang = b.dataset.setLang;
+        try { localStorage.setItem("lang", lang); } catch (e) {}
+        apply(lang);
+      });
+    });
+    apply(document.documentElement.dataset.lang);
+  })();
+</script>
+
+</body>
+</html>

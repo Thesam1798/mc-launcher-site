@@ -1,0 +1,14 @@
+{
+  "name": "mc-launcher-site-build",
+  "private": true,
+  "description": "Génère files/style.css. La CSP du cluster interdit les CDN externes (script-src/style-src 'self'), donc Tailwind et DaisyUI sont compilés ici et servis depuis le même domaine.",
+  "scripts": {
+    "build": "tailwindcss -i input.css -o ../files/style.css --minify"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4",
+    "tailwindcss": "^4",
+    "daisyui": "^5",
+    "lucide-static": "latest"
+  }
+}

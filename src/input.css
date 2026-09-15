@@ -1,0 +1,15 @@
+@import "tailwindcss" source(none);
+@source "./template.html";
+
+@plugin "daisyui" {
+  themes: winter --default, dim --prefersdark;
+}
+
+/* Bascule de langue.
+   Sans JavaScript, <html> n'a pas de data-lang et les deux langues restent
+   visibles : le contenu est dégradé mais lisible. Le script du <head> pose
+   l'attribut avant le premier rendu, donc pas de clignotement. */
+html[data-lang="fr"] [data-lang="en"],
+html[data-lang="en"] [data-lang="fr"] {
+  display: none;
+}
