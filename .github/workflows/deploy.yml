@@ -26,7 +26,9 @@ permissions:
   contents: read
 
 env:
-  DEPLOY_PATH: /opt/mc-launcher-site
+  # Sous le home de l'utilisateur deploy, et non /opt : ce dernier n'est pas
+  # inscriptible sans root, et la CI n'a aucune raison d'en avoir besoin.
+  DEPLOY_PATH: mc-launcher-site
   RELEASE: mc-launcher-site
   NAMESPACE: mc-launcher
 
@@ -58,7 +60,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
             -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH"
+            "$SSH_USER@$SSH_HOST" "mkdir -p \"$DEPLOY_PATH/chart\""
           rsync -az --delete \
             -e "ssh -i ~/.ssh/id_deploy -p $SSH_PORT -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes" \
             ./chart/ "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/chart/"
@@ -73,9 +75,9 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
             -o ServerAliveInterval=30 \
             "$SSH_USER@$SSH_HOST" \
-            "helm upgrade --install $RELEASE $DEPLOY_PATH/chart \
+            "helm upgrade --install $RELEASE \"\$HOME/$DEPLOY_PATH/chart\" \
                --namespace $NAMESPACE --create-namespace \
-               -f $DEPLOY_PATH/chart/values.yaml \
+               -f \"\$HOME/$DEPLOY_PATH/chart/values.yaml\" \
                --atomic --wait --timeout 5m --cleanup-on-fail"
 
       - name: Vérifier que le site répond
