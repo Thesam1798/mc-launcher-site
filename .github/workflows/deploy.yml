@@ -58,10 +58,7 @@ jobs:
             preprod)
               NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info ;;
             prod)
-              # Namespace historique : la release y tourne déjà. Le renommer en
-              # mc-prod suppose de désinstaller l'ancienne d'abord, sinon deux
-              # IngressRoute revendiquent le même hôte.
-              NS=mc-launcher; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info ;;
+              NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info ;;
           esac
 
           {
