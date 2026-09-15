@@ -1,71 +1,46 @@
 # mc-launcher-site
 
-Page de présentation du projet [mc-launcher](https://github.com/Thesam1798/mc-launcher),
+Page de présentation de [mc-launcher](https://github.com/samflix-mc/mc-launcher),
 servie sur **https://mc-launcher.ggy.info**.
 
-## Pourquoi un dépôt séparé
+## Modifier le contenu
 
-Le site n'a aucun rapport avec la stack média du cluster : namespace, cycle de
-vie et contenu lui sont propres. Il vit donc ici, avec son chart et son
-déploiement, plutôt que dans `k8s-samflix`.
-
-## Pourquoi le CSS est compilé et versionné
-
-Le cluster applique une CSP en `script-src 'self'` et `style-src 'self'`. Les CDN
-de Tailwind, DaisyUI et Lucide seraient **bloqués par le navigateur** et la page
-arriverait sans style. Tout est donc compilé à l'avance et servi depuis le même
-domaine :
-
-- Tailwind CSS 4 + DaisyUI 5 → `chart/files/style.css`
-- icônes Lucide → SVG inlinés directement dans le HTML, sans runtime JavaScript
-
-Aucune requête vers un tiers au chargement.
-
-## Rebuild après modification du contenu
-
-Le HTML publié est **généré** : éditer `src/template.html`, jamais
-`chart/files/index.html`.
+Éditer `src/template.html` — **jamais** `chart/files/`, qui est généré.
 
 ```bash
-cd src
-pnpm install
-node build.mjs                                            # injecte les icônes
-pnpm exec tailwindcss -i input.css -o ../chart/files/style.css --minify
+cd src && node build.mjs
 ```
 
-Puis committer `chart/files/` et pousser sur `main` : le déploiement part tout seul.
-
-## Bilingue
-
-Les blocs portent `data-lang="fr"` ou `data-lang="en"` ; une règle CSS masque
-celui qui ne correspond pas à `<html data-lang>`. Un script dans le `<head>`
-pose l'attribut **avant le premier rendu** — pas de clignotement — en suivant
-cet ordre : choix mémorisé dans `localStorage`, puis `navigator.language`, puis
-anglais. Sans JavaScript, les deux langues restent affichées : dégradé mais
-lisible.
+Committer `chart/files/` et pousser.
 
 ## Déploiement
 
-`git push` sur `main` (chemins `chart/**`) déclenche
-[`deploy.yml`](.github/workflows/deploy.yml) : rsync du chart vers le serveur,
-puis `helm upgrade --install --atomic` exécuté **sur place**, le kubeconfig K3s
-pointant sur `127.0.0.1:6443` et le port 6443 étant fermé depuis l'extérieur.
-Le workflow vérifie ensuite que les deux hôtes répondent en 200.
+| branche | environnement | domaine |
+|---|---|---|
+| `dev` | `mc-dev` | mc-launcher-dev.ggy.info |
+| `main` | `mc-preprod` | mc-launcher-staging.ggy.info |
+| tag `v*` | `mc-prod` | mc-launcher.ggy.info |
 
-Secrets requis : `SSH_HOST`, `SSH_USER`, `SSH_PORT`, `SSH_PRIVATE_KEY`,
-`SSH_KNOWN_HOSTS`. La clé est **propre à ce dépôt**, indépendante de celle de
-`k8s-samflix`.
+Le workflow appelle `deploy-helm.yml` de
+[`.github`](https://github.com/samflix-mc/.github) : `helm` tourne sur le
+serveur, le runner ne fait que du SSH.
 
-Déploiement manuel :
+## Contraintes à connaître
 
-```bash
-helm upgrade --install mc-launcher-site ./chart \
-  --namespace mc-launcher --create-namespace --atomic --wait
-```
+**Pas de CDN.** La CSP du cluster est en `script-src 'self'` / `style-src
+'self'`. Tailwind et DaisyUI sont compilés ici, les icônes Lucide inlinées en
+SVG. Aucune requête tierce au chargement.
 
-## Le cas mc-luncher
+**CSS nommé d'après son empreinte.** `static-web-server` envoie
+`cache-control: max-age=31536000` sur les fichiers d'apparence statique, pages
+d'erreur comprises — un 403 transitoire a déjà été mis en cache un an par
+Cloudflare.
 
-`mc-luncher.ggy.info` est routé en plus de `mc-launcher.ggy.info` : le DNS de
-`ggy.info` est joker, les deux résolvent, et « luncher » est la faute de frappe
-naturelle sur « launcher ». Autant ne pas envoyer un 403 à quelqu'un qui l'a
-tapée.
+**Fichiers montés en `subPath`.** Un montage de ConfigMap classique crée des
+liens symboliques vers `..data/`, que `static-web-server` refuse : `/` répond
+200 mais `/index.html` répond 403.
+
+**Un seul niveau de sous-domaine.** Le certificat public de Cloudflare ne couvre
+que `ggy.info` et `*.ggy.info`.
+
+`mc-luncher.ggy.info` est routé en plus : la faute de frappe est fréquente.
