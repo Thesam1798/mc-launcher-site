@@ -3,7 +3,7 @@
   "private": true,
   "description": "Génère chart/files/. La CSP du cluster interdit les CDN externes (script-src/style-src 'self'), donc Tailwind et DaisyUI sont compilés ici et servis depuis le même domaine.",
   "scripts": {
-    "build": "tailwindcss -i input.css -o .style.css --minify && node build.mjs"
+    "build": "node build.mjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4",

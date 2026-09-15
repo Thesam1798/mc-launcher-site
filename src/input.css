@@ -1,15 +1,129 @@
 @import "tailwindcss" source(none);
-@source "./template.html";
+
+/* Tailwind scanne le HTML *intermédiaire*, pas le gabarit : les classes de
+   taille des icônes n'existent dans template.html qu'à l'intérieur des jetons
+   {{icon:…}}, que l'extracteur ne sait pas lire. */
+@source "./.index.pre.html";
 
 @plugin "daisyui" {
-  themes: winter --default, dim --prefersdark;
+  themes: false;
+  logs: false;
+}
+
+/* Deux thèmes maison plutôt que des thèmes DaisyUI tout faits : papier chaud
+   en clair, encre froide en sombre, un seul accent (vert de gris) et des
+   rayons de bordure volontairement courts. */
+@plugin "daisyui/theme" {
+  name: "paper";
+  default: true;
+  color-scheme: light;
+
+  --color-base-100: oklch(98.6% 0.004 95);
+  --color-base-200: oklch(96.2% 0.006 95);
+  --color-base-300: oklch(89.5% 0.008 95);
+  --color-base-content: oklch(25% 0.015 80);
+
+  --color-primary: oklch(47% 0.082 168);
+  --color-primary-content: oklch(98% 0.01 168);
+  --color-secondary: oklch(42% 0.03 260);
+  --color-secondary-content: oklch(98% 0.005 260);
+  --color-accent: oklch(58% 0.11 55);
+  --color-accent-content: oklch(99% 0.01 55);
+  --color-neutral: oklch(25% 0.015 80);
+  --color-neutral-content: oklch(98% 0.004 95);
+
+  --color-info: oklch(50% 0.09 240);
+  --color-info-content: oklch(98% 0.01 240);
+  --color-success: oklch(50% 0.105 155);
+  --color-success-content: oklch(98% 0.01 155);
+  --color-warning: oklch(62% 0.118 65);
+  --color-warning-content: oklch(99% 0.01 65);
+  --color-error: oklch(53% 0.185 27);
+  --color-error-content: oklch(99% 0.01 27);
+
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "ink";
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: oklch(17.5% 0.009 260);
+  --color-base-200: oklch(21% 0.011 260);
+  --color-base-300: oklch(29% 0.013 260);
+  --color-base-content: oklch(91% 0.008 95);
+
+  --color-primary: oklch(74% 0.095 168);
+  --color-primary-content: oklch(18% 0.03 168);
+  --color-secondary: oklch(78% 0.03 260);
+  --color-secondary-content: oklch(18% 0.01 260);
+  --color-accent: oklch(74% 0.11 55);
+  --color-accent-content: oklch(18% 0.03 55);
+  --color-neutral: oklch(26% 0.012 260);
+  --color-neutral-content: oklch(92% 0.008 95);
+
+  --color-info: oklch(74% 0.09 240);
+  --color-info-content: oklch(18% 0.03 240);
+  --color-success: oklch(72% 0.115 155);
+  --color-success-content: oklch(18% 0.03 155);
+  --color-warning: oklch(80% 0.125 70);
+  --color-warning-content: oklch(19% 0.03 70);
+  --color-error: oklch(68% 0.16 27);
+  --color-error-content: oklch(18% 0.04 27);
+
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.375rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 }
 
 /* Bascule de langue.
-   Sans JavaScript, <html> n'a pas de data-lang et les deux langues restent
-   visibles : le contenu est dégradé mais lisible. Le script du <head> pose
-   l'attribut avant le premier rendu, donc pas de clignotement. */
+   <html> porte data-lang="en" dès le fichier statique : sans JavaScript la page
+   reste cohérente en anglais au lieu d'afficher les deux versions l'une après
+   l'autre. Le script du <head> corrige l'attribut avant le premier rendu. */
 html[data-lang="fr"] [data-lang="en"],
 html[data-lang="en"] [data-lang="fr"] {
   display: none;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Garde-fou contre le bug d'origine : build.mjs retire width/height des SVG
+   Lucide, donc un SVG sans classe size-* s'étalerait sur toute la largeur.
+   La règle est dans @layer base pour que les utilitaires size-* la battent. */
+@layer base {
+  svg {
+    flex: none;
+    width: 1.25em;
+    height: 1.25em;
+  }
 }

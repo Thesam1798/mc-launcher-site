@@ -1,211 +1,412 @@
 <!DOCTYPE html>
-<html>
+<html lang="en" data-lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>mc-launcher</title>
+<meta name="description" content="Desktop launcher for a modded Minecraft Java server: installs NeoForge and the server mod set, signs the player in through the Microsoft OAuth 2.0 device code flow, and connects them to the server.">
 <link rel="stylesheet" href="/{{css}}">
 <script>
-  // Choix de la langue avant le premier rendu, pour éviter que les deux
-  // versions apparaissent successivement. Ordre : choix mémorisé, puis langue
-  // du navigateur, puis anglais.
+  // Langue choisie avant le premier rendu, pour éviter que les deux versions
+  // apparaissent successivement. Ordre : choix mémorisé, langues déclarées par
+  // le navigateur, puis anglais — qui est déjà l'attribut du fichier statique,
+  // donc la page reste cohérente même sans JavaScript.
   (function () {
     var stored = null;
     try { stored = localStorage.getItem("lang"); } catch (e) {}
-    var nav = (navigator.language || "en").toLowerCase();
-    var lang = stored || (nav.indexOf("fr") === 0 ? "fr" : "en");
+    var lang = stored === "fr" || stored === "en" ? stored : null;
+    if (!lang) {
+      var list = navigator.languages || [navigator.language || "en"];
+      for (var i = 0; i < list.length && !lang; i++) {
+        var tag = String(list[i]).toLowerCase();
+        if (tag.indexOf("fr") === 0) lang = "fr";
+        else if (tag.indexOf("en") === 0) lang = "en";
+      }
+    }
+    lang = lang || "en";
     document.documentElement.lang = lang;
     document.documentElement.dataset.lang = lang;
   })();
 </script>
 </head>
-<body class="bg-base-100 text-base-content">
+<body class="min-h-dvh bg-base-100 text-base-content antialiased">
 
-<div class="navbar border-b border-base-300 px-4 sm:px-8">
-  <div class="flex-1">
-    <span class="font-mono text-lg font-semibold tracking-tight">mc-launcher</span>
-  </div>
-  <div class="flex-none">
-    <div class="join" role="group" aria-label="Langue / Language">
-      <button class="btn btn-sm join-item" data-set-lang="fr">FR</button>
-      <button class="btn btn-sm join-item" data-set-lang="en">EN</button>
-    </div>
-  </div>
-</div>
+<a href="#contenu" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-field focus:bg-base-content focus:px-3 focus:py-2 focus:text-sm focus:text-base-100">
+  <span data-lang="fr">Aller au contenu</span><span data-lang="en">Skip to content</span>
+</a>
 
-<main class="mx-auto max-w-3xl px-4 py-10 sm:px-8 sm:py-16">
-
-  <header class="mb-10">
-    <div class="mb-4 flex flex-wrap items-center gap-2">
-      <span class="badge badge-warning badge-sm gap-1">
-        {{icon:hammer:size-3.5}}
-        <span data-lang="fr">En développement</span>
-        <span data-lang="en">In development</span>
+<header class="sticky top-0 z-30 border-b border-base-300 bg-base-100/92 backdrop-blur">
+  <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+    <span class="flex items-center gap-2.5 font-mono text-sm font-semibold tracking-tight">
+      <span class="inline-block size-2 rounded-[1px] bg-primary"></span>
+      mc-launcher
+    </span>
+    <div class="flex items-center gap-4">
+      <span class="hidden font-mono text-[0.7rem] uppercase tracking-[0.18em] opacity-45 sm:inline">
+        <span data-lang="fr">Projet personnel</span><span data-lang="en">Personal project</span>
       </span>
-      <span class="badge badge-ghost badge-sm">Minecraft 1.21.1 · NeoForge</span>
-    </div>
-    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">mc-launcher</h1>
-    <p class="mt-3 text-lg opacity-70">
-      <span data-lang="fr">Launcher de bureau pour un serveur Minecraft Java moddé.</span>
-      <span data-lang="en">Desktop launcher for a modded Minecraft Java server.</span>
-    </p>
-  </header>
-
-  <div class="alert alert-warning mb-12">
-    {{icon:triangle-alert}}
-    <div>
-      <p data-lang="fr">Aucune version n'est distribuée et le serveur n'est pas ouvert. Ce site documente un projet en cours.</p>
-      <p data-lang="en">No build is distributed and the server is not open. This page documents work in progress.</p>
+      <div class="flex items-center gap-px rounded-field border border-base-300 p-px font-mono text-[0.7rem] font-medium" role="group" aria-label="Langue / Language">
+        <button type="button" data-set-lang="fr" class="rounded-[3px] px-2 py-1 leading-none transition-colors">FR</button>
+        <button type="button" data-set-lang="en" class="rounded-[3px] px-2 py-1 leading-none transition-colors">EN</button>
+      </div>
     </div>
   </div>
+</header>
 
-  <section class="mb-12">
-    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
-      {{icon:boxes}}
-      <span data-lang="fr">À quoi il sert</span>
-      <span data-lang="en">What it is for</span>
-    </h2>
-    <div data-lang="fr" class="space-y-3 leading-relaxed">
-      <p>Le serveur tourne en 1.21.1 avec NeoForge. Un client doit charger exactement le même jeu de mods que le serveur, sinon la connexion est refusée pour désynchronisation des registres.</p>
-      <p>Installer NeoForge, copier les fichiers dans le bon dossier, puis recommencer à chaque mise à jour : c'est là que la plupart des joueurs abandonnent. Le launcher fait ces étapes à leur place, garde le jeu de mods à jour et ouvre la connexion au serveur.</p>
-    </div>
-    <div data-lang="en" class="space-y-3 leading-relaxed">
-      <p>The server runs Minecraft 1.21.1 with NeoForge. A client must load exactly the same mod set as the server, otherwise the connection is refused because the registries no longer match.</p>
-      <p>Installing NeoForge, copying files into the right folder, then doing it again on every update is where most players give up. The launcher does those steps for them, keeps the mod set current and connects them to the server.</p>
+<main id="contenu">
+
+  <!-- Héros ------------------------------------------------------------- -->
+  <section class="relative overflow-hidden border-b border-base-300">
+    <div aria-hidden="true" class="pointer-events-none absolute inset-0 [background-image:radial-gradient(var(--color-base-300)_1px,transparent_1.1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_78%)] opacity-70"></div>
+
+    <div class="relative mx-auto grid max-w-6xl gap-12 px-5 py-14 sm:px-8 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:items-center lg:gap-16">
+
+      <div>
+        <p class="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-primary">
+          <span data-lang="fr">Launcher Minecraft Java</span><span data-lang="en">Minecraft Java launcher</span>
+        </p>
+        <h1 class="mt-5 text-4xl font-semibold tracking-tight sm:text-6xl">mc-launcher</h1>
+        <p class="mt-5 max-w-xl text-lg leading-8 opacity-75 sm:text-xl sm:leading-9">
+          <span data-lang="fr">Launcher de bureau pour un serveur Minecraft Java moddé.</span>
+          <span data-lang="en">Desktop launcher for a modded Minecraft Java server.</span>
+        </p>
+
+        <dl class="mt-9 flex flex-wrap gap-x-10 gap-y-5 border-t border-base-300 pt-7">
+          <div>
+            <dt class="font-mono text-[0.65rem] uppercase tracking-[0.18em] opacity-45">
+              <span data-lang="fr">Statut</span><span data-lang="en">Status</span>
+            </dt>
+            <dd class="mt-1.5 flex items-center gap-2 text-sm font-medium">
+              <span class="inline-block size-1.5 rounded-full bg-warning"></span>
+              <span data-lang="fr">En développement</span><span data-lang="en">In development</span>
+            </dd>
+          </div>
+          <div>
+            <dt class="font-mono text-[0.65rem] uppercase tracking-[0.18em] opacity-45">
+              <span data-lang="fr">Cible</span><span data-lang="en">Target</span>
+            </dt>
+            <dd class="mt-1.5 text-sm font-medium">Minecraft 1.21.1 · NeoForge</dd>
+          </div>
+          <div>
+            <dt class="font-mono text-[0.65rem] uppercase tracking-[0.18em] opacity-45">
+              <span data-lang="fr">Implémentation</span><span data-lang="en">Implementation</span>
+            </dt>
+            <dd class="mt-1.5 text-sm font-medium">Rust</dd>
+          </div>
+        </dl>
+
+        <p class="mt-8 flex max-w-xl items-start gap-3 border-l-2 border-warning py-0.5 pl-4 text-sm leading-6">
+          {{icon:triangle-alert:size-4 shrink-0 translate-y-0.5 text-warning}}
+          <span>
+            <span data-lang="fr">Aucune version n'est distribuée et le serveur n'est pas ouvert. Ce site documente un projet en cours.</span>
+            <span data-lang="en">No build is distributed and the server is not open. This page documents work in progress.</span>
+          </span>
+        </p>
+      </div>
+
+      <!-- Schéma des échanges : aucun écran de saisie n'est reproduit ici,
+           une fausse invite « saisissez ce code » se confondrait avec une
+           page d'hameçonnage. -->
+      <figure class="max-w-md rounded-box border border-base-300 bg-base-100 p-5 shadow-[0_18px_40px_-30px_oklch(0%_0_0/0.4)] sm:p-6 lg:mt-2 lg:max-w-none">
+        <figcaption class="font-mono text-[0.65rem] uppercase tracking-[0.18em] opacity-45">
+          <span data-lang="fr">Qui parle à qui</span><span data-lang="en">Who talks to whom</span>
+        </figcaption>
+
+        <div class="mt-5">
+          <div class="flex items-center gap-3.5 rounded-field border border-base-300 bg-base-200 px-3.5 py-3">
+            {{icon:monitor:size-4 shrink-0 text-primary}}
+            <span class="min-w-0">
+              <span class="block text-sm font-medium">
+                <span data-lang="fr">Poste du joueur</span><span data-lang="en">Player's computer</span>
+              </span>
+              <span class="block font-mono text-[0.7rem] opacity-50">mc-launcher</span>
+            </span>
+          </div>
+
+          <div class="relative py-3 pl-[2.7rem]">
+            <span aria-hidden="true" class="absolute bottom-0 left-[1.35rem] top-0 w-px bg-base-300"></span>
+            <span class="font-mono text-[0.65rem] uppercase tracking-[0.15em] opacity-45">
+              <span data-lang="fr">OAuth 2.0 · device code</span><span data-lang="en">OAuth 2.0 · device code</span>
+            </span>
+          </div>
+
+          <div class="flex items-center gap-3.5 rounded-field border border-base-300 bg-base-200 px-3.5 py-3">
+            {{icon:shield-check:size-4 shrink-0 text-primary}}
+            <span class="min-w-0">
+              <span class="block text-sm font-medium">Microsoft · Xbox Live · Mojang</span>
+              <span class="block text-[0.7rem] opacity-50">
+                <span data-lang="fr">Authentification et licence</span><span data-lang="en">Authentication and licence</span>
+              </span>
+            </span>
+          </div>
+
+          <div class="relative py-3 pl-[2.7rem]">
+            <span aria-hidden="true" class="absolute bottom-0 left-[1.35rem] top-0 w-px bg-base-300"></span>
+            <span class="font-mono text-[0.65rem] uppercase tracking-[0.15em] opacity-45">
+              <span data-lang="fr">Jeton de session</span><span data-lang="en">Session token</span>
+            </span>
+          </div>
+
+          <div class="flex items-center gap-3.5 rounded-field border border-base-300 bg-base-200 px-3.5 py-3">
+            {{icon:server:size-4 shrink-0 text-primary}}
+            <span class="min-w-0">
+              <span class="block text-sm font-medium">
+                <span data-lang="fr">Serveur Minecraft du projet</span><span data-lang="en">The project's Minecraft server</span>
+              </span>
+              <span class="block text-[0.7rem] opacity-50">
+                <span data-lang="fr">Même jeu de mods que le client</span><span data-lang="en">Same mod set as the client</span>
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <p class="mt-5 flex items-start gap-2.5 border-t border-base-300 pt-4 text-[0.78rem] leading-5 opacity-55">
+          {{icon:lock-keyhole:size-3.5 shrink-0 translate-y-0.5}}
+          <span>
+            <span data-lang="fr">Aucun mot de passe, aucun secret client, aucun identifiant chez nous.</span>
+            <span data-lang="en">No password, no client secret, no credential on our side.</span>
+          </span>
+        </p>
+      </figure>
+
     </div>
   </section>
 
-  <section class="mb-12">
-    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
-      {{icon:key-round}}
-      <span data-lang="fr">Connexion au compte</span>
-      <span data-lang="en">Signing in</span>
-    </h2>
-    <div data-lang="fr" class="space-y-3 leading-relaxed">
-      <p>Le launcher n'a pas de système de comptes. Il ne stocke ni ne voit aucun mot de passe. Le joueur s'identifie chez Microsoft avec le flux OAuth&nbsp;2.0 <em>device code</em>&nbsp;: il saisit un code sur une page Microsoft, s'authentifie normalement, MFA comprise, et le launcher ne reçoit qu'un jeton.</p>
-    </div>
-    <div data-lang="en" class="space-y-3 leading-relaxed">
-      <p>The launcher has no account system of its own. It never sees or stores a password. The player signs in with Microsoft through the OAuth&nbsp;2.0 <em>device code</em> flow: they enter a code on a Microsoft page, authenticate as usual including MFA, and the launcher only ever receives a token.</p>
-    </div>
+  <!-- 01 — À quoi il sert ------------------------------------------------ -->
+  <section class="border-b border-base-300 bg-base-200/60">
+    <div class="mx-auto grid max-w-6xl gap-x-16 gap-y-6 px-5 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
+      <div class="lg:sticky lg:top-24 lg:self-start">
+        <p class="font-mono text-xs tracking-[0.2em] text-primary">01</p>
+        <h2 class="mt-2 text-lg font-semibold tracking-tight">
+          <span data-lang="fr">À quoi il sert</span><span data-lang="en">What it is for</span>
+        </h2>
+      </div>
+      <div>
+        <div data-lang="fr" class="grid max-w-[64ch] gap-6 lg:max-w-none lg:grid-cols-2 lg:gap-10">
+          <p class="text-[1.0625rem] leading-8">Le serveur tourne en 1.21.1 avec NeoForge. Un client doit charger exactement le même jeu de mods que le serveur, sinon la connexion est refusée pour désynchronisation des registres.</p>
+          <p class="text-[1.0625rem] leading-8 opacity-80">Installer NeoForge, copier les fichiers dans le bon dossier, puis recommencer à chaque mise à jour : c'est là que la plupart des joueurs abandonnent. Le launcher fait ces étapes à leur place, garde le jeu de mods à jour et ouvre la connexion au serveur.</p>
+        </div>
+        <div data-lang="en" class="grid max-w-[64ch] gap-6 lg:max-w-none lg:grid-cols-2 lg:gap-10">
+          <p class="text-[1.0625rem] leading-8">The server runs Minecraft 1.21.1 with NeoForge. A client must load exactly the same mod set as the server, otherwise the connection is refused because the registries no longer match.</p>
+          <p class="text-[1.0625rem] leading-8 opacity-80">Installing NeoForge, copying files into the right folder, then doing it again on every update is where most players give up. The launcher does those steps for them, keeps the mod set current and connects them to the server.</p>
+        </div>
 
-    <div class="mt-5 overflow-x-auto">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th class="w-8">#</th>
-            <th><span data-lang="fr">Service</span><span data-lang="en">Service</span></th>
-            <th><span data-lang="fr">Rôle</span><span data-lang="en">Purpose</span></th>
-          </tr>
-        </thead>
-        <tbody class="align-top">
-          <tr>
-            <td>1</td>
-            <td class="font-mono text-xs">login.microsoftonline.com</td>
-            <td><span data-lang="fr">Device code, portée <code>XboxLive.signin</code></span><span data-lang="en">Device code, scope <code>XboxLive.signin</code></span></td>
-          </tr>
-          <tr>
-            <td>2</td>
-            <td class="font-mono text-xs">user.auth.xboxlive.com</td>
-            <td><span data-lang="fr">Jeton Xbox Live</span><span data-lang="en">Xbox Live token</span></td>
-          </tr>
-          <tr>
-            <td>3</td>
-            <td class="font-mono text-xs">xsts.auth.xboxlive.com</td>
-            <td><span data-lang="fr">Autorisation XSTS</span><span data-lang="en">XSTS authorization</span></td>
-          </tr>
-          <tr>
-            <td>4</td>
-            <td class="font-mono text-xs">api.minecraftservices.com<wbr>/authentication/login_with_xbox</td>
-            <td><span data-lang="fr">Jeton de session Minecraft</span><span data-lang="en">Minecraft session token</span></td>
-          </tr>
-          <tr>
-            <td>5</td>
-            <td class="font-mono text-xs">…/entitlements/mcstore</td>
-            <td><span data-lang="fr">Vérification de la licence&nbsp;; sans licence Java Edition valide, la connexion est refusée</span><span data-lang="en">Ownership check; an account without a valid Java Edition licence is refused</span></td>
-          </tr>
-          <tr>
-            <td>6</td>
-            <td class="font-mono text-xs">…/minecraft/profile</td>
-            <td><span data-lang="fr">Pseudo et UUID</span><span data-lang="en">Profile name and UUID</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="mt-5 rounded-box border border-base-300 p-4 text-sm leading-relaxed">
-      <p data-lang="fr">Aucun contrôle de sécurité, d'authentification ou de licence n'est contourné, et aucune fonction de sécurité n'est désactivée. Le launcher n'utilise pas de secret client, et aucun identifiant de joueur ne transite par notre infrastructure.</p>
-      <p data-lang="en">No security, authentication or licence check is bypassed, and no safety feature is disabled. The launcher uses no client secret, and no player credential ever passes through our infrastructure.</p>
+        <div class="mt-10 flex flex-col items-start gap-3 border-t border-base-300 pt-7 text-sm font-medium sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-5">
+          <span class="flex items-center gap-2.5">
+            {{icon:download:size-4 shrink-0 text-primary}}
+            <span data-lang="fr">Installe NeoForge</span><span data-lang="en">Installs NeoForge</span>
+          </span>
+          {{icon:arrow-right:size-3.5 shrink-0 opacity-25 hidden sm:block}}
+          <span class="flex items-center gap-2.5">
+            {{icon:refresh-cw:size-4 shrink-0 text-primary}}
+            <span data-lang="fr">Synchronise les mods</span><span data-lang="en">Syncs the mod set</span>
+          </span>
+          {{icon:arrow-right:size-3.5 shrink-0 opacity-25 hidden sm:block}}
+          <span class="flex items-center gap-2.5">
+            {{icon:server:size-4 shrink-0 text-primary}}
+            <span data-lang="fr">Connecte au serveur</span><span data-lang="en">Connects to the server</span>
+          </span>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="mb-12">
-    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
-      {{icon:list-checks}}
-      <span data-lang="fr">Avancement</span>
-      <span data-lang="en">Status</span>
-    </h2>
-    <ul class="space-y-2.5">
-      <li class="flex items-start gap-2.5">
-        <span class="mt-0.5 text-success">{{icon:circle-check}}</span>
-        <span><span data-lang="fr">Chaîne d'authentification en Rust — écrite, compile, testée jusqu'au dernier appel</span><span data-lang="en">Authentication chain in Rust — written, compiles, tested up to the final call</span></span>
-      </li>
-      <li class="flex items-start gap-2.5">
-        <span class="mt-0.5 text-warning">{{icon:clock}}</span>
-        <span><span data-lang="fr">Approbation de l'identifiant d'application par Microsoft — demandée</span><span data-lang="en">Microsoft application ID approval — requested</span></span>
-      </li>
-      <li class="flex items-start gap-2.5">
-        <span class="mt-0.5 opacity-40">{{icon:circle-dashed}}</span>
-        <span><span data-lang="fr">Installation du jeu de mods côté client</span><span data-lang="en">Client-side mod set installation</span></span>
-      </li>
-      <li class="flex items-start gap-2.5">
-        <span class="mt-0.5 opacity-40">{{icon:circle-dashed}}</span>
-        <span><span data-lang="fr">Lancement du jeu et connexion directe au serveur</span><span data-lang="en">Game launch and direct server connection</span></span>
-      </li>
-      <li class="flex items-start gap-2.5">
-        <span class="mt-0.5 opacity-40">{{icon:circle-dashed}}</span>
-        <span><span data-lang="fr">Interface</span><span data-lang="en">User interface</span></span>
-      </li>
-    </ul>
+  <!-- 02 — Connexion au compte ------------------------------------------- -->
+  <section class="border-b border-base-300">
+    <div class="mx-auto grid max-w-6xl gap-x-16 gap-y-6 px-5 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
+      <div class="lg:sticky lg:top-24 lg:self-start">
+        <p class="font-mono text-xs tracking-[0.2em] text-primary">02</p>
+        <h2 class="mt-2 text-lg font-semibold tracking-tight">
+          <span data-lang="fr">Connexion au compte</span><span data-lang="en">Signing in</span>
+        </h2>
+      </div>
+
+      <div>
+        <p data-lang="fr" class="max-w-2xl text-[1.0625rem] leading-8">Le launcher n'a pas de système de comptes. Il ne stocke ni ne voit aucun mot de passe. Le joueur s'identifie chez Microsoft avec le flux OAuth&nbsp;2.0 <em>device code</em>&nbsp;: il saisit un code sur une page Microsoft, s'authentifie normalement, MFA comprise, et le launcher ne reçoit qu'un jeton.</p>
+        <p data-lang="en" class="max-w-2xl text-[1.0625rem] leading-8">The launcher has no account system of its own. It never sees or stores a password. The player signs in with Microsoft through the OAuth&nbsp;2.0 <em>device code</em> flow: they enter a code on a Microsoft page, authenticate as usual including MFA, and the launcher only ever receives a token.</p>
+
+        <p class="mt-10 font-mono text-[0.65rem] uppercase tracking-[0.18em] opacity-45">
+          <span data-lang="fr">Appels réseau, dans l'ordre</span><span data-lang="en">Network calls, in order</span>
+        </p>
+
+        <ol class="mt-4 space-y-0">
+          <li class="relative grid gap-x-5 gap-y-1.5 border-t border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">1</span>
+            <span aria-hidden="true" class="absolute left-3 top-10 -bottom-4 w-px bg-base-300"></span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">login.microsoftonline.com</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Device code, portée <code class="font-mono text-[0.78rem]">XboxLive.signin</code></span>
+              <span data-lang="en">Device code, scope <code class="font-mono text-[0.78rem]">XboxLive.signin</code></span>
+            </span>
+          </li>
+          <li class="relative grid gap-x-5 gap-y-1.5 border-t border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">2</span>
+            <span aria-hidden="true" class="absolute left-3 top-10 -bottom-4 w-px bg-base-300"></span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">user.auth.xboxlive.com</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Jeton Xbox Live</span><span data-lang="en">Xbox Live token</span>
+            </span>
+          </li>
+          <li class="relative grid gap-x-5 gap-y-1.5 border-t border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">3</span>
+            <span aria-hidden="true" class="absolute left-3 top-10 -bottom-4 w-px bg-base-300"></span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">xsts.auth.xboxlive.com</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Autorisation XSTS</span><span data-lang="en">XSTS authorization</span>
+            </span>
+          </li>
+          <li class="relative grid gap-x-5 gap-y-1.5 border-t border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">4</span>
+            <span aria-hidden="true" class="absolute left-3 top-10 -bottom-4 w-px bg-base-300"></span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">api.minecraftservices.com<wbr>/authentication/login_with_xbox</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Jeton de session Minecraft</span><span data-lang="en">Minecraft session token</span>
+            </span>
+          </li>
+          <li class="relative grid gap-x-5 gap-y-1.5 border-t border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">5</span>
+            <span aria-hidden="true" class="absolute left-3 top-10 -bottom-4 w-px bg-base-300"></span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">…/entitlements/mcstore</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Vérification de la licence&nbsp;; sans licence Java Edition valide, la connexion est refusée</span>
+              <span data-lang="en">Ownership check; an account without a valid Java Edition licence is refused</span>
+            </span>
+          </li>
+          <li class="relative grid gap-x-5 gap-y-1.5 border-y border-base-300 py-4 pl-9 sm:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <span aria-hidden="true" class="absolute left-0 top-4 flex size-6 items-center justify-center rounded-full border border-base-300 bg-base-100 font-mono text-[0.65rem] tabular-nums">6</span>
+            <code class="font-mono text-[0.8rem] leading-6 break-words">…/minecraft/profile</code>
+            <span class="text-sm leading-6 opacity-70">
+              <span data-lang="fr">Pseudo et UUID</span><span data-lang="en">Profile name and UUID</span>
+            </span>
+          </li>
+        </ol>
+
+        <div class="mt-8 flex items-start gap-4 rounded-box border border-primary/25 bg-primary/5 px-5 py-4">
+          {{icon:shield-check:size-5 shrink-0 translate-y-0.5 text-primary}}
+          <p class="text-sm leading-6">
+            <span data-lang="fr">Aucun contrôle de sécurité, d'authentification ou de licence n'est contourné, et aucune fonction de sécurité n'est désactivée. Le launcher n'utilise pas de secret client, et aucun identifiant de joueur ne transite par notre infrastructure.</span>
+            <span data-lang="en">No security, authentication or licence check is bypassed, and no safety feature is disabled. The launcher uses no client secret, and no player credential ever passes through our infrastructure.</span>
+          </p>
+        </div>
+      </div>
+    </div>
   </section>
 
-  <section class="mb-4">
-    <h2 class="mb-3 flex items-center gap-2 text-xl font-semibold">
-      {{icon:code}}
-      <span data-lang="fr">Code source</span>
-      <span data-lang="en">Source code</span>
-    </h2>
-    <ul class="space-y-2">
-      <li>
-        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-launcher">
-          {{icon:folder-git-2:size-4}} Thesam1798/mc-launcher {{icon:external-link:size-3.5 opacity-50}}
-        </a>
-        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Le launcher</span><span data-lang="en">The launcher</span></span>
-      </li>
-      <li>
-        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-server-docker">
-          {{icon:folder-git-2:size-4}} Thesam1798/mc-server-docker {{icon:external-link:size-3.5 opacity-50}}
-        </a>
-        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Le réseau serveur, en Docker Compose</span><span data-lang="en">The server network, in Docker Compose</span></span>
-      </li>
-      <li>
-        <a class="link link-hover inline-flex items-center gap-2 font-mono text-sm" href="https://github.com/Thesam1798/mc-launcher-site">
-          {{icon:folder-git-2:size-4}} Thesam1798/mc-launcher-site {{icon:external-link:size-3.5 opacity-50}}
-        </a>
-        <span class="block pl-6 text-sm opacity-60"><span data-lang="fr">Ce site</span><span data-lang="en">This page</span></span>
-      </li>
-    </ul>
+  <!-- 03 — Avancement ----------------------------------------------------- -->
+  <section class="border-b border-base-300 bg-base-200/60">
+    <div class="mx-auto grid max-w-6xl gap-x-16 gap-y-6 px-5 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
+      <div class="lg:sticky lg:top-24 lg:self-start">
+        <p class="font-mono text-xs tracking-[0.2em] text-primary">03</p>
+        <h2 class="mt-2 text-lg font-semibold tracking-tight">
+          <span data-lang="fr">Avancement</span><span data-lang="en">Status</span>
+        </h2>
+      </div>
+
+      <div>
+        <div class="flex gap-1.5" aria-hidden="true">
+          <span class="h-1 flex-1 rounded-full bg-success"></span>
+          <span class="h-1 flex-1 rounded-full bg-warning"></span>
+          <span class="h-1 flex-1 rounded-full bg-base-300"></span>
+          <span class="h-1 flex-1 rounded-full bg-base-300"></span>
+          <span class="h-1 flex-1 rounded-full bg-base-300"></span>
+        </div>
+
+        <ul class="mt-7 space-y-0">
+          <li class="flex items-start gap-4 border-b border-base-300 py-4">
+            <span class="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-success/12 text-success">{{icon:check:size-3.5}}</span>
+            <span class="text-[0.95rem] leading-6">
+              <span data-lang="fr">Chaîne d'authentification en Rust — écrite, compile, testée jusqu'au dernier appel</span>
+              <span data-lang="en">Authentication chain in Rust — written, compiles, tested up to the final call</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-4 border-b border-base-300 py-4">
+            <span class="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-warning/12 text-warning">{{icon:clock:size-3.5}}</span>
+            <span class="text-[0.95rem] leading-6">
+              <span data-lang="fr">Approbation de l'identifiant d'application par Microsoft — demandée</span>
+              <span data-lang="en">Microsoft application ID approval — requested</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-4 border-b border-base-300 py-4">
+            <span class="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-base-300/70 opacity-60">{{icon:minus:size-3.5}}</span>
+            <span class="text-[0.95rem] leading-6 opacity-55">
+              <span data-lang="fr">Installation du jeu de mods côté client</span><span data-lang="en">Client-side mod set installation</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-4 border-b border-base-300 py-4">
+            <span class="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-base-300/70 opacity-60">{{icon:minus:size-3.5}}</span>
+            <span class="text-[0.95rem] leading-6 opacity-55">
+              <span data-lang="fr">Lancement du jeu et connexion directe au serveur</span><span data-lang="en">Game launch and direct server connection</span>
+            </span>
+          </li>
+          <li class="flex items-start gap-4 border-b border-base-300 py-4">
+            <span class="mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-base-300/70 opacity-60">{{icon:minus:size-3.5}}</span>
+            <span class="text-[0.95rem] leading-6 opacity-55">
+              <span data-lang="fr">Interface</span><span data-lang="en">User interface</span>
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 — Code source ---------------------------------------------------- -->
+  <section>
+    <div class="mx-auto grid max-w-6xl gap-x-16 gap-y-6 px-5 py-14 sm:px-8 sm:py-18 lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)]">
+      <div class="lg:sticky lg:top-24 lg:self-start">
+        <p class="font-mono text-xs tracking-[0.2em] text-primary">04</p>
+        <h2 class="mt-2 text-lg font-semibold tracking-tight">
+          <span data-lang="fr">Code source</span><span data-lang="en">Source code</span>
+        </h2>
+      </div>
+
+      <ul class="border-t border-base-300">
+        <li class="border-b border-base-300">
+          <a class="group block py-5 transition-colors hover:text-primary" href="https://github.com/Thesam1798/mc-launcher">
+            <span class="flex flex-wrap items-center gap-x-2.5 font-mono text-[0.95rem] break-words">
+              Thesam1798/mc-launcher
+              {{icon:arrow-up-right:size-4 shrink-0 opacity-35 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100}}
+            </span>
+            <span class="mt-1.5 block text-sm opacity-55">
+              <span data-lang="fr">Le launcher</span><span data-lang="en">The launcher</span>
+            </span>
+          </a>
+        </li>
+        <li class="border-b border-base-300">
+          <a class="group block py-5 transition-colors hover:text-primary" href="https://github.com/Thesam1798/mc-server-docker">
+            <span class="flex flex-wrap items-center gap-x-2.5 font-mono text-[0.95rem] break-words">
+              Thesam1798/mc-server-docker
+              {{icon:arrow-up-right:size-4 shrink-0 opacity-35 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100}}
+            </span>
+            <span class="mt-1.5 block text-sm opacity-55">
+              <span data-lang="fr">Le réseau serveur, en Docker Compose</span><span data-lang="en">The server network, in Docker Compose</span>
+            </span>
+          </a>
+        </li>
+        <li class="border-b border-base-300">
+          <a class="group block py-5 transition-colors hover:text-primary" href="https://github.com/Thesam1798/mc-launcher-site">
+            <span class="flex flex-wrap items-center gap-x-2.5 font-mono text-[0.95rem] break-words">
+              Thesam1798/mc-launcher-site
+              {{icon:arrow-up-right:size-4 shrink-0 opacity-35 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100}}
+            </span>
+            <span class="mt-1.5 block text-sm opacity-55">
+              <span data-lang="fr">Ce site</span><span data-lang="en">This page</span>
+            </span>
+          </a>
+        </li>
+      </ul>
+    </div>
   </section>
 
 </main>
 
-<footer class="border-t border-base-300 px-4 py-8 text-sm opacity-60 sm:px-8">
-  <div class="mx-auto max-w-3xl space-y-1">
-    <p class="inline-flex items-center gap-2">
-      {{icon:mail:size-4}}
-      <a class="link link-hover" href="mailto:alexandre@debris.ovh">alexandre@debris.ovh</a>
+<footer class="border-t border-base-300 bg-base-200/60">
+  <div class="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-9 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
+    <p class="opacity-55">
+      <span data-lang="fr">Projet personnel, non affilié à Mojang ni à Microsoft.</span>
+      <span data-lang="en">Personal project, not affiliated with Mojang or Microsoft.</span>
     </p>
-    <p data-lang="fr">Projet personnel, non affilié à Mojang ni à Microsoft.</p>
-    <p data-lang="en">Personal project, not affiliated with Mojang or Microsoft.</p>
+    <a class="font-mono text-[0.8rem] underline-offset-4 opacity-70 transition-colors hover:text-primary hover:underline hover:opacity-100" href="mailto:alexandre@debris.ovh">alexandre@debris.ovh</a>
   </div>
 </footer>
 
@@ -216,7 +417,11 @@
       document.documentElement.lang = lang;
       document.documentElement.dataset.lang = lang;
       buttons.forEach(function (b) {
-        b.classList.toggle("btn-active", b.dataset.setLang === lang);
+        var on = b.dataset.setLang === lang;
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+        b.classList.toggle("bg-base-content", on);
+        b.classList.toggle("text-base-100", on);
+        b.classList.toggle("opacity-50", !on);
       });
     }
     buttons.forEach(function (b) {
@@ -226,7 +431,7 @@
         apply(lang);
       });
     });
-    apply(document.documentElement.dataset.lang);
+    apply(document.documentElement.dataset.lang || "en");
   })();
 </script>
 
