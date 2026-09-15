@@ -1,13 +1,16 @@
 name: Déployer le site
 
 # Correspondance branche → environnement :
-#   dev        → dev      (mc-launcher.dev.ggy.info)
-#   main       → preprod  (mc-launcher.staging.ggy.info)
+#   dev        → dev      (mc-launcher-dev.ggy.info)
+#   main       → preprod  (mc-launcher-staging.ggy.info)
 #   tag v*     → prod     (mc-launcher.ggy.info)
 #
-# Le nommage suit le certificat d'origine Cloudflare, qui couvre *.ggy.info,
-# *.dev.ggy.info et *.staging.ggy.info — mais pas deux niveaux d'un coup :
-# preprod.mc-launcher.ggy.info échouait en TLS.
+# Un seul niveau de sous-domaine, et ce n'est pas un choix esthétique : le
+# certificat public de Cloudflare ne couvre que « ggy.info » et « *.ggy.info ».
+# Tout nom à deux niveaux — preprod.mc-launcher.ggy.info, mc-launcher.staging
+# .ggy.info — échoue en TLS côté visiteur, même si le certificat d'origine,
+# lui, couvre *.dev et *.staging. Les couvrir au bord demanderait Advanced
+# Certificate Manager, payant.
 #
 # La prod n'est jamais atteinte par un simple push : il faut poser un tag, ce
 # que toi seul peux faire. C'est la barrière d'approbation du pauvre, les
@@ -51,9 +54,9 @@ jobs:
 
           case "$ENV" in
             dev)
-              NS=mc-dev;      HOSTS='{mc-launcher.dev.ggy.info}';     URL=https://mc-launcher.dev.ggy.info ;;
+              NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info ;;
             preprod)
-              NS=mc-preprod;  HOSTS='{mc-launcher.staging.ggy.info}'; URL=https://mc-launcher.staging.ggy.info ;;
+              NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info ;;
             prod)
               # Namespace historique : la release y tourne déjà. Le renommer en
               # mc-prod suppose de désinstaller l'ancienne d'abord, sinon deux
