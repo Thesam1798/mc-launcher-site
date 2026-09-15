@@ -47,10 +47,18 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          # Chaque fichier est monté en subPath, ce qui produit de vrais
+          # fichiers. Un montage de ConfigMap classique crée des liens
+          # symboliques vers ..data/, et static-web-server refuse de les servir
+          # : /  répondait 200 (chemin de l'index de répertoire) mais
+          # /index.html et /style.css répondaient 403.
           volumeMounts:
+          {{- range $path, $_ := .Files.Glob "files/*" }}
             - name: site
-              mountPath: /public
+              mountPath: /public/{{ base $path }}
+              subPath: {{ base $path }}
               readOnly: true
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
