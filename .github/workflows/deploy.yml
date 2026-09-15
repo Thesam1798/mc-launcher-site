@@ -88,9 +88,14 @@ jobs:
           for url in \
             https://mc-launcher.ggy.info/ \
             https://mc-launcher.ggy.info/index.html \
-            https://mc-launcher.ggy.info/style.css \
             https://mc-luncher.ggy.info/ ; do
             code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$url")
             echo "$url → HTTP $code" >> "$GITHUB_STEP_SUMMARY"
             [ "$code" = "200" ] || { echo "::error::$url a répondu $code"; exit 1; }
           done
+          # Le CSS porte une empreinte dans son nom : on lit l'URL dans la page
+          # plutôt que de la coder en dur.
+          css=$(curl -s -m 20 https://mc-launcher.ggy.info/ | grep -o 'href="/style\.[^"]*\.css"' | cut -d'"' -f2)
+          code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://mc-launcher.ggy.info$css")
+          echo "$css → HTTP $code" >> "$GITHUB_STEP_SUMMARY"
+          [ "$code" = "200" ] || { echo "::error::$css a répondu $code"; exit 1; }
