@@ -14,13 +14,21 @@ la même origine, et c'est la première chose à savoir ici :
 
 ## Modifier le contenu
 
-Éditer `src/template.html` — **jamais** `chart/files/`, qui est généré.
+Éditer `src/template.html`, committer, pousser. C'est tout : la CI construit et
+déploie.
 
 ```bash
-cd src && node build.mjs
+cd src && pnpm install && node build.mjs   # pour voir le rendu en local
 ```
 
-Committer `chart/files/` et pousser.
+`chart/files/` est **généré et ignoré par git**. Il y a été versionné, et deux
+choses en découlaient : il fallait penser à lancer la construction avant de
+committer, et le déclencheur du déploiement ne regardait même pas `src/` —
+modifier le gabarit sans reconstruire ne déployait donc rien, en silence.
+
+Conséquence à connaître : un `helm install` depuis un clone frais ne servirait
+aucune page. La construction doit précéder, et c'est la CI qui la fait — elle
+dépose le chart construit en artefact, que le déploiement reprend.
 
 Le pack, lui, ne se modifie pas ici : il se modifie dans
 [mc-content](https://github.com/samflix-mc/mc-content), où il voisine avec les
@@ -47,17 +55,18 @@ pouvoir vivre sans elle. Si `/content/launcher` manque, l'initContainer échoue
 volontairement : un pod sain servant un 404 rendrait `mc-pack install`
 impossible pour tout le monde sans que rien ne le signale.
 
-Le tag de l'image est l'environnement. `dev` et `preprod` suivent `main` ; la
-production est épinglée dans `.github/workflows/deploy.yml`, là où ce chart
-prend déjà ses décisions par environnement. **Ce tag doit être le même que
-`environments.prod.content.tag` dans `mc-server`** — c'est là que se joue la
-concordance entre ce que le client charge et ce que les serveurs installent.
-Elle est écrite à la main aux deux endroits plutôt que déduite : une
-désynchronisation doit se voir en revue, pas se découvrir à la première
-éjection d'un joueur.
+Le tag de l'image est l'environnement, et il vient de
+[`environnements.yaml`](https://github.com/samflix-mc/.github/blob/main/environnements.yaml).
+`dev` et `preprod` suivent `main` ; la production est épinglée.
 
-Le pack publié sur `main` de mc-content atteint dev sans intervention : la CI
-de mc-content redémarre ce déploiement en même temps que les serveurs.
+**C'est le même fichier qui le donne à `mc-server`.** Il était auparavant
+recopié à la main ici et là-bas, sans que rien ne vérifie qu'ils concordaient —
+alors que c'est cette concordance qui décide si un joueur entre dans la partie
+ou s'en fait éjecter à la connexion.
+
+Le pack publié sur `main` de mc-content atteint dev sans intervention :
+mc-content annonce, et `recharger-contenu.yml` recharge ce déploiement puis
+vérifie que le verrou servi est bien le nouveau.
 
 ### Où il est publié
 
@@ -75,23 +84,30 @@ pas de pack ne préparerait rien.
 son tirage s'autorise par un Secret qui vit dans le namespace. `mc-dev` et
 `mc-prod` l'ont parce que `mc-server` y vit ; `mc-preprod` n'est occupé que par
 ce site et ne l'avait pas — l'initContainer y restait en `ImagePullBackOff`, et
-`helm --atomic` annulait tout le déploiement, la page avec. Le job `amorcer` du
-workflow le recopie désormais depuis un namespace voisin avant de déployer. Il
-ne fabrique aucun identifiant et n'en fait transiter aucun par la CI : la copie
-se fait de nœud à nœud, et reste sans effet quand le Secret est déjà là.
+`helm --atomic` annulait tout le déploiement, la page avec.
+
+`deploy-helm.yml` le recopie désormais depuis un namespace voisin avant de
+déployer, pour tout chart qui le demande. Ce dépôt portait un job entier pour
+ça, alors que le besoin n'a rien qui lui soit propre : il naît dès qu'un chart
+tire une image privée dans un namespace qu'il est seul à occuper.
 
 Pour la production, il faut d'abord poser un tag sur `mc-content` : `v0.1.0`
 est antérieur à l'arrivée de `launcher/` dans l'image, et l'initContainer
-échouerait volontairement. Le tag reporté dans le workflow doit être le même
-que `environments.prod.content.tag` dans `mc-server`.
+échouerait volontairement. Le tag se reporte dans `environnements.yaml`, et une
+seule fois — il sert aussi aux serveurs.
 
 ## Déploiement
 
-| branche | environnement | domaine |
+| référence | environnement | domaine |
 |---|---|---|
-| `dev` | `mc-dev` | mc-launcher-dev.ggy.info |
-| `main` | `mc-preprod` | mc-launcher-staging.ggy.info |
+| `main` | `mc-dev` | mc-launcher-dev.ggy.info |
+| déclenchement manuel | `mc-preprod` | mc-launcher-staging.ggy.info |
 | tag `v*` | `mc-prod` | mc-launcher.ggy.info |
+
+C'est la règle commune aux quatre dépôts. Elle n'était pas celle-ci : `main`
+déployait la préproduction et une branche `dev` déployait la dev. Pousser sur
+`main` avait quatre effets différents selon le dépôt de l'organisation, ce qui
+n'aide personne — et une répétition se décide, elle ne se subit pas.
 
 Le workflow appelle `deploy-helm.yml` de
 [`.github`](https://github.com/samflix-mc/.github) : `helm` tourne sur le
