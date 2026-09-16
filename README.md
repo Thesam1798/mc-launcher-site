@@ -119,17 +119,35 @@ serveur, le runner ne fait que du SSH.
 'self'`. Tailwind et DaisyUI sont compilés ici, les icônes Lucide inlinées en
 SVG. Aucune requête tierce au chargement.
 
-**CSS nommé d'après son empreinte.** `static-web-server` envoie
-`cache-control: max-age=31536000` sur les fichiers d'apparence statique, pages
-d'erreur comprises — un 403 transitoire a déjà été mis en cache un an par
-Cloudflare.
+**Le cache est refusé par défaut.** `static-web-server` pose un
+`cache-control` d'office, choisi sur la seule extension du fichier et sans
+distinguer une réponse saine d'une erreur : `max-age=31536000` sur le CSS,
+`max-age=86400` sur le HTML, et la même chose sur ses pages d'erreur. Un 403
+transitoire a déjà été mis en cache un an par Cloudflare.
 
-**Le pack échappe au cache.** Le CSS se protège par son nom haché ; le pack,
-lui, garde le même nom à vie, puisque c'est ce qui permet au launcher d'aller
-le chercher sans rien savoir. Un middleware Traefik pose donc
-`cache-control: no-cache` sur `/pack/`, et une route dédiée l'applique. Un pack
+Trois routes Traefik décident donc à sa place, et la règle est inversée : rien
+n'est mis en cache, sauf ce dont le nom garantit qu'il ne changera jamais.
+
+| route | `cache-control` |
+|---|---|
+| `/style.*` | `public, max-age=31536000, immutable` |
+| `/pack/` | `no-cache` |
+| tout le reste, page et erreurs comprises | `no-cache` |
+
+**Pourquoi le CSS seul y a droit.** `src/build.mjs` le nomme d'après son
+empreinte et supprime l'ancien : l'URL change avec le contenu, elle peut donc
+être gardée pour toujours. La page, elle, garde le même nom — un `max-age` d'un
+jour y faisait tenir l'ancienne version dans le navigateur des visiteurs, avec
+sa référence à un CSS que le déploiement venait de supprimer. Page nue pendant
+vingt-quatre heures, et rien côté serveur pour le voir.
+
+**Le pack échappe au cache.** Il garde lui aussi le même nom à vie, puisque
+c'est ce qui permet au launcher d'aller le chercher sans rien savoir. Un pack
 périmé ne produit pas une page mal stylée : le joueur installe des versions que
 les serveurs n'ont plus et se fait éjecter à la connexion.
+
+La revalidation ne coûte pas un téléchargement : `static-web-server` envoie un
+`last-modified`, et une réponse inchangée se solde par un 304 vide.
 
 **Fichiers montés en `subPath`.** Un montage de ConfigMap classique crée des
 liens symboliques vers `..data/`, que `static-web-server` refuse : `/` répond

@@ -7,6 +7,18 @@
 # Traefik est configuré avec kubernetesCRD sans restriction de namespace et
 # allowCrossNamespace, il la voit donc ici et peut pointer vers le middleware
 # resté dans traefik-system.
+#
+# Trois routes pour un seul backend. Elles ne servent qu'à décider du
+# « cache-control », que static-web-server choisit sinon sur la seule extension
+# du fichier — voir middlewares-cache.yaml.
+#
+# Aucune priorité n'est posée : Traefik classe par longueur de rule
+# décroissante, et les deux routes spécifiques sont la règle générale plus un
+# « && PathPrefix(…) ». L'écart est constant, et la liste d'hôtes est la même
+# pour les trois : ajouter un hôte à un environnement allonge les trois
+# règles d'autant et ne peut pas renverser l'ordre.
+{{- $hotes := printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts) }}
+{{- $securite := .Values.securityHeaders }}
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -19,28 +31,46 @@ spec:
     - websecure
   routes:
     {{- if .Values.pack.enabled }}
-    # Le pack, avant la règle générale. Traefik classe les routes par longueur
-    # de rule quand aucune priorité n'est donnée : celle-ci est plus longue,
-    # donc examinée d'abord. Elle n'est là que pour ajouter un en-tête de
-    # cache — voir middleware-pack.yaml — et sert le même backend.
+    # Le pack ne doit jamais être servi depuis un cache : il garde le même nom
+    # à vie — c'est ce qui permet au launcher d'aller le chercher sans rien
+    # savoir — et un pack périmé fait installer au joueur des versions que les
+    # serveurs n'ont plus. Les registres NeoForge ne concordent alors pas à la
+    # connexion, et il est éjecté avec un message qui ne dit pas pourquoi.
     - kind: Rule
-      match: {{ printf "(%s) && PathPrefix(`/pack/`)" (printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts)) }}
+      match: {{ printf "(%s) && PathPrefix(`/pack/`)" $hotes }}
       middlewares:
-        - name: {{ .Values.securityHeaders.middlewareName }}
-          namespace: {{ .Values.securityHeaders.middlewareNamespace }}
-        - name: mc-launcher-site-pack
+        - name: {{ $securite.middlewareName }}
+          namespace: {{ $securite.middlewareNamespace }}
+        - name: mc-launcher-site-sans-cache
           namespace: {{ .Values.namespace }}
       services:
         - name: mc-launcher-site
           namespace: {{ .Values.namespace }}
           port: 80
     {{- end }}
+    # Le CSS, et lui seul, porte son empreinte dans son nom : src/build.mjs
+    # l'écrit en « style.<empreinte>.css » et supprime l'ancien. Une URL qui
+    # change avec le contenu peut être gardée pour toujours.
     - kind: Rule
-      match: {{ printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts) }}
-      # Site public : en-têtes de sécurité uniquement, aucune authentification.
+      match: {{ printf "(%s) && PathPrefix(`/style.`)" $hotes }}
       middlewares:
-        - name: {{ .Values.securityHeaders.middlewareName }}
-          namespace: {{ .Values.securityHeaders.middlewareNamespace }}
+        - name: {{ $securite.middlewareName }}
+          namespace: {{ $securite.middlewareNamespace }}
+        - name: mc-launcher-site-immuable
+          namespace: {{ .Values.namespace }}
+      services:
+        - name: mc-launcher-site
+          namespace: {{ .Values.namespace }}
+          port: 80
+    # Tout le reste — la page, et les erreurs. Site public : en-têtes de
+    # sécurité uniquement, aucune authentification.
+    - kind: Rule
+      match: {{ $hotes }}
+      middlewares:
+        - name: {{ $securite.middlewareName }}
+          namespace: {{ $securite.middlewareNamespace }}
+        - name: mc-launcher-site-sans-cache
+          namespace: {{ .Values.namespace }}
       services:
         - name: mc-launcher-site
           namespace: {{ .Values.namespace }}

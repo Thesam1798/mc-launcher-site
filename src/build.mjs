@@ -16,6 +16,11 @@
 // « cache-control: max-age=31536000 » sur les fichiers d'apparence statique,
 // y compris sur ses pages d'erreur. Un 403 transitoire s'est retrouvé mis en
 // cache un an par Cloudflare sur /style.css.
+//
+// Ce nom est aussi ce qui donne au CSS le droit d'être mis en cache : le chart
+// refuse le cache partout ailleurs, et ne l'accorde qu'à /style.*, dont l'URL
+// change avec le contenu. Changer ce nommage, c'est changer la route Traefik
+// qui va avec — voir chart/templates/ingressroute.yaml.
 import { readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
