@@ -58,7 +58,37 @@ spec:
                 echo "l'image de contenu ne porte pas /content/launcher" >&2
                 exit 1
               fi
+              # Un répertoire présent mais sans .json fait échouer ce cp : le
+              # motif ne s'étend pas, cp ne trouve rien, et « sh -e » s'arrête.
+              # C'est voulu.
               cp -f /content/launcher/*.json /pack/
+
+              # Le launcher ne lit jamais un manifeste seul : il télécharge
+              # « samflix.json » et « samflix.lock.json » ensemble, et refuse la
+              # paire dépareillée — un manifeste neuf accompagné du verrou
+              # d'avant décrirait un pack que personne n'a publié.
+              #
+              # Rien ne garantissait ici que l'image porte les deux. Une
+              # publication où « mc-pack lock » a échoué après avoir écrit le
+              # manifeste passait sans un mot : le cp réussit, le pod démarre,
+              # /pack/samflix.json répond 200, et c'est le joueur qui découvre
+              # le 404 sur le verrou. Le contrôle d'après-déploiement de
+              # deploy.yml voit bien les deux fichiers, mais trop tard et sans
+              # rétracter la release ; celui de recharger-contenu.yml
+              # n'interroge que le verrou et ne l'aurait pas vu du tout.
+              manquant=""
+              for f in /pack/*.json; do
+                case "$f" in
+                  *.lock.json) autre="${f%.lock.json}.json" ;;
+                  *)           autre="${f%.json}.lock.json" ;;
+                esac
+                [ -f "$autre" ] || manquant="$manquant $(basename "$autre")"
+              done
+              [ -z "$manquant" ] || {
+                echo "pack incomplet dans l'image de contenu, il manque :$manquant" >&2
+                exit 1
+              }
+
               echo "pack mc-content $(cat /content/VERSION 2>/dev/null || echo inconnu) en place :"
               ls -l /pack
           volumeMounts:
