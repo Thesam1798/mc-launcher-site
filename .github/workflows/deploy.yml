@@ -117,18 +117,56 @@ jobs:
           mauvais=0
 
           {
-            echo "| fichier | code | cache-control | octets |"
-            echo "|---|---|---|---|"
+            echo "| fichier | code | cache-control | cf-cache-status | octets |"
+            echo "|---|---|---|---|---|"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          for f in samflix.json samflix.lock.json; do
-            entetes=$(curl -sS -D - -o "/tmp/$f" -m 20 "$base/$f")
-            code=$(printf '%s' "$entetes" | head -1 | awk '{print $2}')
-            cache=$(printf '%s' "$entetes" | tr -d '\r' | grep -i '^cache-control:' | cut -d' ' -f2- || echo '(absent)')
-            taille=$(wc -c < "/tmp/$f")
-            echo "| \`$f\` | $code | \`$cache\` | $taille |" >> "$GITHUB_STEP_SUMMARY"
+          # Le dernier exemplaire d'un en-tête, insensible à la casse. Le repli
+          # se fait ensuite sur la variable et non sur le tube : « cut » y a le
+          # dernier mot et sort 0 même quand « grep » n'a rien trouvé, si bien
+          # qu'un « || echo » accroché au tube n'était jamais atteint et que
+          # l'en-tête absent se lisait comme une chaîne vide.
+          entete() { printf '%s' "$entetes" | tr -d '\r' | grep -i "^$1:" | cut -d' ' -f2- | tail -1; }
 
-            [ "$code" = 200 ] || { echo "::error::$base/$f répond $code"; mauvais=1; }
+          for f in samflix.json samflix.lock.json; do
+            # Une chaîne de requête unique par exécution. La clé de cache de
+            # Cloudflare l'inclut, cette URL-là n'a donc jamais été servie et la
+            # réponse vient forcément de l'origine.
+            #
+            # Sans elle, ce contrôle se retourne contre lui-même dans le seul
+            # cas qu'il existe pour détecter : le jour où /pack/ repart avec le
+            # « max-age » que static-web-server pose d'office sur le JSON,
+            # Cloudflare se met à le garder — et les exécutions suivantes
+            # relisent depuis le bord un en-tête que l'origine n'envoie plus.
+            url="$base/$f?ci=${{ github.run_id }}-${{ github.run_attempt }}"
+
+            # « || true » : curl sort non nul quand il n'a pas pu joindre
+            # l'hôte, l'affectation reprend ce code, et « set -e » tuait
+            # l'étape avant le ::error:: comme avant la ligne du résumé. Le
+            # seul cas où ce contrôle a quelque chose à raconter était aussi le
+            # seul où il se taisait. deploy-helm.yml porte la même correction.
+            # Effacé d'abord : sur un échec de résolution curl n'écrit rien,
+            # et la taille relevée plus bas serait celle que la tentative
+            # précédente a laissée.
+            rm -f "/tmp/$f"
+            entetes=$(curl -sS -D - -o "/tmp/$f" -m 20 "$url" || true)
+            # Le dernier statut, et non le premier : un 103 ou une redirection
+            # laisse deux blocs d'en-têtes dans le vidage, et « head -1 »
+            # relèverait le code du premier. Vaut 0 quand il n'y en a aucun.
+            code=$(printf '%s' "$entetes" | tr -d '\r' | awk '/^HTTP\//{c=$2} END{print c+0}')
+            cache=$(entete cache-control); cache=${cache:-"(absent)"}
+            bord=$(entete cf-cache-status); bord=${bord:-"(absent)"}
+            # Le « 2>/dev/null » d'un « wc -c < fichier » ne sert à rien : c'est
+            # le shell qui échoue sur la redirection, avant wc, et il le dit sur
+            # sa propre sortie d'erreur.
+            if [ -f "/tmp/$f" ]; then taille=$(wc -c < "/tmp/$f"); else taille=0; fi
+            echo "| \`$f\` | $code | \`$cache\` | $bord | $taille |" >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$code" != 200 ]; then
+              echo "::error::$base/$f répond $code"
+              mauvais=1
+              continue
+            fi
 
             # Un pack mis en cache est un pack périmé, et un pack périmé coûte
             # une éjection à la connexion. Ce dépôt a déjà vu un 403 transitoire
@@ -136,6 +174,10 @@ jobs:
             # son nom haché, le pack ne le peut pas : il garde le même nom à vie,
             # c'est ce qui permet au launcher d'aller le chercher sans rien
             # savoir.
+            #
+            # Après le code seulement : un fichier qu'on n'a pas obtenu n'a pas
+            # d'en-tête, et signaler en plus qu'il manque le bon « cache-control »
+            # noierait la cause sous sa conséquence.
             case "$cache" in
               *no-cache*) ;;
               *) echo "::error::$f est servi avec « $cache » au lieu de no-cache"; mauvais=1 ;;

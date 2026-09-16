@@ -57,12 +57,30 @@ jobs:
             kubectl -n "$NS" rollout restart deploy/mc-launcher-site
             kubectl -n "$NS" rollout status  deploy/mc-launcher-site --timeout=5m
 
-      - name: Le pack servi est-il le nouveau ?
+      # Le pack est bien servi, et voici ce qu'il dit.
+      #
+      # Pas « est-ce le nouveau ? » : rien dans les fichiers servis ne le dirait.
+      # « generated » date du dernier « mc-pack lock », pas de la construction de
+      # l'image, et deux images successives peuvent porter le même verrou. Ce que
+      # cette étape garantit, c'est qu'après le redémarrage le pack répond
+      # toujours — un initContainer en échec laisserait un 404, et
+      # « mc-pack install » deviendrait impossible pour tout le monde.
+      - name: Le pack est-il servi, et que dit-il ?
         run: |
           set -eu
-          url="${{ needs.env.outputs.site-url }}/pack/samflix.lock.json"
-          code=$(curl -sS -o /tmp/verrou.json -m 20 -w '%{http_code}' "$url")
-          [ "$code" = 200 ] || { echo "::error::$url répond $code"; exit 1; }
+          base="${{ needs.env.outputs.site-url }}/pack/samflix.lock.json"
+          # Chaîne de requête unique : la clé de cache de Cloudflare l'inclut,
+          # cette URL-là n'a jamais été servie, et la réponse vient donc de
+          # l'origine et non du bord. Interroger l'URL nue après un redémarrage
+          # revient à demander au cache de témoigner du pod qu'on vient de
+          # remplacer.
+          url="$base?ci=${{ github.run_id }}-${{ github.run_attempt }}"
+          # « || true » et repli sur la variable, et non « || echo 000 » :
+          # curl écrit déjà « 000 » via -w quand il n'a pas pu joindre l'hôte,
+          # et le echo s'y ajoutait — la variable valait « 000000 », que le
+          # message d'erreur recopiait tel quel.
+          code=$(curl -sS -o /tmp/verrou.json -m 20 -w '%{http_code}' "$url" || true)
+          [ "${code:-000}" = 200 ] || { echo "::error::$base répond ${code:-000}"; exit 1; }
           {
             echo "Pack rechargé sur ${{ needs.env.outputs.namespace }}"
             echo ""
