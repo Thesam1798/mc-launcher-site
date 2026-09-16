@@ -50,7 +50,7 @@ jobs:
             # l'est par ce dépôt, indépendamment du contenu. Le dire et
             # s'arrêter là vaut mieux qu'échouer pour une absence légitime.
             if ! kubectl -n "$NS" get deploy/mc-launcher-site >/dev/null 2>&1; then
-              echo "mc-launcher-site absent de $NS, rien a recharger"
+              echo "mc-launcher-site absent de $NS, rien à recharger"
               exit 0
             fi
 

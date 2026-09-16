@@ -3,6 +3,6 @@ src/node_modules/
 .style.css
 .claude/
 
-# Genere par src/build.mjs, construit en CI et depose en artefact.
-# Le committer, c'est entretenir une copie que rien ne verifie.
+# Généré par src/build.mjs, construit en CI et déposé en artefact.
+# Le committer, c'est entretenir une copie que rien ne vérifie.
 chart/files/
