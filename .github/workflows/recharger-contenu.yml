@@ -1,0 +1,75 @@
+name: Recharger le pack
+
+# Déclenché par mc-content quand il publie une image, et par personne d'autre.
+#
+# Ce site sert le pack du launcher depuis cette image. Sans ce rechargement, les
+# joueurs de dev recevraient encore le pack d'avant pendant que les serveurs
+# tournent déjà sur le nouveau — soit exactement le décalage client/serveur que
+# la mutualisation existe pour éviter.
+#
+# Avant, c'était mc-content qui redémarrait ce déploiement, par SSH, en ayant
+# d'abord vérifié qu'il existe : le dépôt de contenu portait donc un test
+# d'existence sur un déploiement qui ne le regarde pas. Il annonce, maintenant.
+#
+# Un redémarrage suffit, inutile de rejouer un helm upgrade : l'initContainer
+# retire l'image du cache à chaque démarrage (imagePullPolicy Always) et remet
+# le pack en place. Le chart, lui, n'a pas changé.
+
+on:
+  repository_dispatch:
+    types: [contenu-publie]
+
+jobs:
+  env:
+    uses: samflix-mc/.github/.github/workflows/resoudre-env.yml@main
+    with:
+      environnement: ${{ github.event.client_payload.environnement }}
+
+  recharger:
+    needs: env
+    # Rien à recharger là où ce site ne publie pas le pack.
+    if: needs.env.outputs.site-pack == 'true'
+    runs-on: ubuntu-24.04-arm
+    concurrency:
+      group: recharger-pack-${{ needs.env.outputs.environnement }}
+      cancel-in-progress: false
+    steps:
+      - uses: samflix-mc/.github/.github/actions/ssh-k3s@main
+        with:
+          cle: ${{ secrets.SSH_PRIVATE_KEY }}
+          hotes-connus: ${{ secrets.SSH_KNOWN_HOSTS }}
+          utilisateur: ${{ secrets.SSH_USER }}
+          hote: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          arguments: ${{ needs.env.outputs.namespace }}
+          script: |
+            set -eu
+            NS="$1"
+
+            # Le site n'est pas forcément déployé dans cet environnement : il
+            # l'est par ce dépôt, indépendamment du contenu. Le dire et
+            # s'arrêter là vaut mieux qu'échouer pour une absence légitime.
+            if ! kubectl -n "$NS" get deploy/mc-launcher-site >/dev/null 2>&1; then
+              echo "mc-launcher-site absent de $NS, rien a recharger"
+              exit 0
+            fi
+
+            kubectl -n "$NS" rollout restart deploy/mc-launcher-site
+            kubectl -n "$NS" rollout status  deploy/mc-launcher-site --timeout=5m
+
+      - name: Le pack servi est-il le nouveau ?
+        run: |
+          set -eu
+          url="${{ needs.env.outputs.site-url }}/pack/samflix.lock.json"
+          code=$(curl -sS -o /tmp/verrou.json -m 20 -w '%{http_code}' "$url")
+          [ "$code" = 200 ] || { echo "::error::$url répond $code"; exit 1; }
+          {
+            echo "Pack rechargé sur ${{ needs.env.outputs.namespace }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| image | \`${{ github.event.client_payload.image }}\` |"
+            echo "| NeoForge | $(jq -r '.loader.version' /tmp/verrou.json) |"
+            echo "| mods | $(jq -r '.mods | length' /tmp/verrou.json) |"
+            echo "| généré le | $(jq -r '.generated' /tmp/verrou.json) |"
+          } >> "$GITHUB_STEP_SUMMARY"
