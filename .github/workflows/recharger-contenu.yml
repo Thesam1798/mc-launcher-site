@@ -66,6 +66,14 @@ jobs:
       # toujours — un initContainer en échec laisserait un 404, et
       # « mc-pack install » deviendrait impossible pour tout le monde.
       - name: Le pack est-il servi, et que dit-il ?
+        env:
+          NS: ${{ needs.env.outputs.namespace }}
+          # Par une variable, et pas interpolée dans le corps du « run: ». Ce
+          # champ vient de la charge utile du dispatch, donc de l'extérieur :
+          # une expression « ${{ }} » est remplacée textuellement avant que bash
+          # ne lise la ligne, et une image nommée « $(…) » se serait exécutée au
+          # lieu de s'afficher. L'environnement en refait une donnée.
+          IMAGE: ${{ github.event.client_payload.image }}
         run: |
           set -eu
           base="${{ needs.env.outputs.site-url }}/pack/samflix.lock.json"
@@ -82,11 +90,10 @@ jobs:
           code=$(curl -sS -o /tmp/verrou.json -m 20 -w '%{http_code}' "$url" || true)
           [ "${code:-000}" = 200 ] || { echo "::error::$base répond ${code:-000}"; exit 1; }
           {
-            echo "Pack rechargé sur ${{ needs.env.outputs.namespace }}"
-            echo ""
+            printf 'Pack rechargé sur %s\n\n' "$NS"
             echo "| | |"
             echo "|---|---|"
-            echo "| image | \`${{ github.event.client_payload.image }}\` |"
+            printf '| image | `%s` |\n' "${IMAGE:-non précisée}"
             echo "| NeoForge | $(jq -r '.loader.version' /tmp/verrou.json) |"
             echo "| mods | $(jq -r '.mods | length' /tmp/verrou.json) |"
             echo "| généré le | $(jq -r '.generated' /tmp/verrou.json) |"
