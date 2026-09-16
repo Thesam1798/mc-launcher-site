@@ -1,0 +1,30 @@
+{{- if .Values.pack.enabled }}
+# Le pack ne doit jamais être servi depuis un cache.
+#
+# static-web-server pose un « cache-control » d'office selon le type de
+# fichier, et ce dépôt en garde déjà la trace : un 403 transitoire sur
+# /style.css s'est retrouvé mis en cache un an par Cloudflare. Le CSS s'en
+# protège par un nom haché ; le pack, lui, garde le même nom à vie — c'est
+# justement ce qui permet au launcher d'aller le chercher sans rien savoir.
+#
+# Un pack périmé ne produit pas une page mal stylée : le joueur installe des
+# versions que les serveurs n'ont plus, les registres NeoForge ne concordent
+# pas à la connexion, et il est éjecté avec un message qui ne dit pas pourquoi.
+# Le coût de la revalidation est une requête de quelques kilooctets, au plus
+# une fois par installation.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: mc-launcher-site-pack
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "mc-launcher-site.labels" . | nindent 4 }}
+spec:
+  headers:
+    customResponseHeaders:
+      # « no-cache » et non « no-store » : le fichier peut être conservé, il
+      # doit seulement être revalidé avant usage. L'ETag de static-web-server
+      # rend alors la réponse vide quand rien n'a changé, ce qui est le cas le
+      # plus fréquent.
+      Cache-Control: "no-cache"
+{{- end }}

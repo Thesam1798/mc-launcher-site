@@ -1,9 +1,13 @@
 # =============================================================================
-# mc-launcher-site — page statique de présentation du projet mc-launcher
+# mc-launcher-site — page de présentation, et pack servi aux launchers
 # =============================================================================
 # Chart volontairement séparé de samflix-media : ce site n'a aucun rapport avec
 # la stack média, il ne partage ni son namespace, ni son cycle de vie, ni ses
 # volumes. Le seul point commun est l'ingress Traefik du cluster.
+#
+# Deux choses sont servies, et elles n'ont pas la même origine :
+#   /            la page, versionnée dans ce dépôt (chart/files, ConfigMap)
+#   /pack/       le pack du launcher, venu de l'image mc-content
 # =============================================================================
 
 namespace: mc-launcher
@@ -28,6 +32,39 @@ image:
   repository: ghcr.io/static-web-server/static-web-server
   tag: "2.43.0"
 
+# Pack du launcher — la liste de mods que les joueurs installent.
+#
+# Il n'est pas versionné ici : il vient de mc-content, où il voisine avec les
+# listes que reçoivent les serveurs. C'est tout l'intérêt — les registres
+# NeoForge sont négociés à la connexion, et un mod en version différente entre
+# le client et le serveur éjecte le joueur sans message exploitable. Une seule
+# décision, deux consommateurs : le chart mc-server et celui-ci.
+#
+# Le transport est le même que pour les serveurs : un initContainer monte
+# l'image de contenu et recopie /content/launcher dans un emptyDir que
+# static-web-server publie sous /pack/.
+pack:
+  enabled: true
+  image: ghcr.io/samflix-mc/mc-content
+  # Valeur par défaut, celle de dev : suit la branche main de mc-content, dont
+  # la CI redémarre ce déploiement à chaque publication.
+  #
+  # La production épingle un tag, et ce tag est choisi dans le workflow de
+  # déploiement, là où ce chart prend déjà toutes ses décisions par
+  # environnement (namespace, hôtes). Jamais « main » en prod : un tag mobile
+  # ferait changer le pack au premier redéploiement venu, y compris subi, sans
+  # que personne ne l'ait décidé.
+  tag: main
+  # Always est nécessaire tant que le tag est mutable : la politique par défaut
+  # d'un tag autre que « latest » est IfNotPresent, et le nœud conserverait
+  # indéfiniment la première image tirée. Un pack republié sous « main » ne
+  # serait jamais repris, sans le moindre message.
+  pullPolicy: Always
+  # Le dépôt mc-content est privé, son image l'est aussi. Le Secret est créé
+  # hors chart, une fois par namespace — le même que celui de mc-server, qui
+  # vit dans ces mêmes namespaces.
+  pullSecret: ghcr-pull
+
 replicas: 1
 
 resources:
@@ -36,3 +73,4 @@ resources:
     memory: 12Mi
   limits:
     memory: 48Mi
+

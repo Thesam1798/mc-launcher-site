@@ -18,6 +18,23 @@ spec:
   entryPoints:
     - websecure
   routes:
+    {{- if .Values.pack.enabled }}
+    # Le pack, avant la règle générale. Traefik classe les routes par longueur
+    # de rule quand aucune priorité n'est donnée : celle-ci est plus longue,
+    # donc examinée d'abord. Elle n'est là que pour ajouter un en-tête de
+    # cache — voir middleware-pack.yaml — et sert le même backend.
+    - kind: Rule
+      match: {{ printf "(%s) && PathPrefix(`/pack/`)" (printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts)) }}
+      middlewares:
+        - name: {{ .Values.securityHeaders.middlewareName }}
+          namespace: {{ .Values.securityHeaders.middlewareNamespace }}
+        - name: mc-launcher-site-pack
+          namespace: {{ .Values.namespace }}
+      services:
+        - name: mc-launcher-site
+          namespace: {{ .Values.namespace }}
+          port: 80
+    {{- end }}
     - kind: Rule
       match: {{ printf "Host(`%s`)" (join "`) || Host(`" .Values.ingress.hosts) }}
       # Site public : en-têtes de sécurité uniquement, aucune authentification.

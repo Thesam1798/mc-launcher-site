@@ -14,8 +14,10 @@ spec:
   template:
     metadata:
       annotations:
-        # Redéploie le pod dès que le contenu change, sinon le ConfigMap monté
-        # met plusieurs minutes à se propager.
+        # Redéploie le pod dès que la page change, sinon le ConfigMap monté met
+        # plusieurs minutes à se propager. Le pack, lui, ne passe pas par le
+        # ConfigMap : il vient de l'image mc-content, et c'est la CI de
+        # mc-content qui redémarre ce déploiement quand elle en publie une.
         checksum/config: {{ .Files.Glob "files/*" | toYaml | sha256sum }}
       labels:
         {{- include "mc-launcher-site.labels" . | nindent 8 }}
@@ -25,6 +27,52 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+      {{- if and .Values.pack.enabled .Values.pack.pullSecret }}
+      # L'image de contenu est privée. Le Secret est créé hors chart, une fois
+      # par namespace — le même que celui de mc-server, qui vit dans ces mêmes
+      # namespaces.
+      imagePullSecrets:
+        - name: {{ .Values.pack.pullSecret }}
+      {{- end }}
+      {{- if .Values.pack.enabled }}
+      # Le pack du launcher n'est pas versionné ici : il est décidé dans
+      # mc-content, aux côtés des listes que reçoivent les serveurs, et
+      # transporté par la même image. Un initContainer l'en extrait, exactement
+      # comme le fait le chart mc-server pour les mods et les plugins.
+      #
+      # Recopié dans un emptyDir plutôt que monté directement : l'image ne
+      # tourne pas, elle transporte, et le conteneur qui sert les fichiers doit
+      # pouvoir démarrer et vivre sans elle.
+      initContainers:
+        - name: pack
+          image: "{{ .Values.pack.image }}:{{ .Values.pack.tag }}"
+          imagePullPolicy: {{ .Values.pack.pullPolicy | default "IfNotPresent" }}
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - |
+              # Échouer ici plutôt que servir un 404 : un pack absent rendrait
+              # « mc-pack install » impossible pour tout le monde, et le pod
+              # passerait pourtant pour sain. Mieux vaut un CrashLoopBackOff,
+              # qui se voit.
+              if [ ! -d /content/launcher ]; then
+                echo "l'image de contenu ne porte pas /content/launcher" >&2
+                exit 1
+              fi
+              cp -f /content/launcher/*.json /pack/
+              echo "pack mc-content $(cat /content/VERSION 2>/dev/null || echo inconnu) en place :"
+              ls -l /pack
+          volumeMounts:
+            - name: pack
+              mountPath: /pack
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+      {{- end }}
       containers:
         - name: static-web-server
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -59,6 +107,15 @@ spec:
               subPath: {{ base $path }}
               readOnly: true
           {{- end }}
+          {{- if .Values.pack.enabled }}
+            # Un répertoire entier, et non des subPath comme la page : son
+            # contenu vient de l'image et n'est pas connu du chart. Ce sont de
+            # vrais fichiers, pas les liens vers ..data/ que static-web-server
+            # refuse de servir.
+            - name: pack
+              mountPath: /public/pack
+              readOnly: true
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -82,3 +139,7 @@ spec:
         - name: site
           configMap:
             name: mc-launcher-site
+        {{- if .Values.pack.enabled }}
+        - name: pack
+          emptyDir: {}
+        {{- end }}

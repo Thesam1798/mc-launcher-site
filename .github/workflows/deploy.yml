@@ -5,6 +5,11 @@ name: Déployer le site
 #   main       → preprod  (mc-launcher-staging.ggy.info)
 #   tag v*     → prod     (mc-launcher.ggy.info)
 #
+# Le site sert deux choses d'origines différentes : la page, versionnée ici, et
+# le pack du launcher, venu de l'image mc-content. La version du pack est donc
+# choisie ici aussi, environnement par environnement, comme le namespace et les
+# hôtes.
+#
 # Un seul niveau de sous-domaine, et ce n'est pas un choix esthétique : le
 # certificat public de Cloudflare ne couvre que « ggy.info » et « *.ggy.info ».
 # Tout nom à deux niveaux — preprod.mc-launcher.ggy.info, mc-launcher.staging
@@ -52,22 +57,35 @@ jobs:
             ENV=preprod
           fi
 
+          # PACK est le tag de l'image mc-content dont ce site publie
+          # /pack/. Il doit désigner, en production, le même tag que
+          # « environments.prod.content.tag » dans mc-server : c'est là que se
+          # joue la concordance entre ce que le client charge et ce que les
+          # serveurs installent. Écrit à la main aux deux endroits plutôt que
+          # déduit — une désynchronisation doit se voir en revue, pas se
+          # découvrir à la première éjection d'un joueur.
+          #
+          # Jamais « main » en production : un tag mobile ferait changer le
+          # pack au premier redéploiement venu, y compris subi.
           case "$ENV" in
             dev)
-              NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info ;;
+              NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info
+              PACK=main;      PULL=Always ;;
             preprod)
-              NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info ;;
+              NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info
+              PACK=main;      PULL=Always ;;
             prod)
-              NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info ;;
+              NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info
+              PACK=v0.1.0;    PULL=IfNotPresent ;;
           esac
 
           {
             echo "environment=$ENV"
             echo "namespace=$NS"
-            echo "set=namespace=$NS,ingress.hosts=$HOSTS"
+            echo "set=namespace=$NS,ingress.hosts=$HOSTS,pack.tag=$PACK,pack.pullPolicy=$PULL"
             echo "url=$URL"
           } >> "$GITHUB_OUTPUT"
-          echo "→ $ENV · namespace $NS · $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "→ $ENV · namespace $NS · $URL · pack mc-content:$PACK" >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: prepare
