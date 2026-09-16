@@ -6,9 +6,9 @@ name: Déployer le site
 #   tag v*     → prod     (mc-launcher.ggy.info)
 #
 # Le site sert deux choses d'origines différentes : la page, versionnée ici, et
-# le pack du launcher, venu de l'image mc-content. La version du pack est donc
-# choisie ici aussi, environnement par environnement, comme le namespace et les
-# hôtes.
+# le pack du launcher, venu de l'image mc-content. Sa version, et le fait même
+# de le publier, sont donc choisis ici aussi, environnement par environnement,
+# comme le namespace et les hôtes.
 #
 # Un seul niveau de sous-domaine, et ce n'est pas un choix esthétique : le
 # certificat public de Cloudflare ne couvre que « ggy.info » et « *.ggy.info ».
@@ -67,25 +67,51 @@ jobs:
           #
           # Jamais « main » en production : un tag mobile ferait changer le
           # pack au premier redéploiement venu, y compris subi.
+          # PACK_ON dit si ce site publie /pack/ dans cet environnement. Les
+          # deux « false » ci-dessous ne sont pas des oublis, chacun attend une
+          # chose précise :
+          #
+          #   preprod — le Secret ghcr-pull n'existe pas dans mc-preprod.
+          #     L'image mc-content est privée ; sans lui l'initContainer ne
+          #     démarre pas et helm --atomic annule tout le déploiement, page
+          #     comprise. mc-dev et mc-prod l'ont parce que mc-server y vit ;
+          #     mc-preprod n'est occupé que par ce site. Pour l'activer :
+          #       kubectl -n mc-preprod create secret docker-registry ghcr-pull \
+          #         --docker-server=ghcr.io --docker-username=<user> \
+          #         --docker-password=<token>
+          #
+          #   prod — aucun tag de mc-content ne porte encore launcher/. Le
+          #     v0.1.0 est antérieur. Pour l'activer : poser un tag sur
+          #     mc-content, le reporter ici en PACK, et le faire correspondre à
+          #     environments.prod.content.tag dans mc-server — c'est là que se
+          #     joue la concordance entre ce que le client charge et ce que les
+          #     serveurs installent.
+          #
+          # Jamais « main » en production : un tag mobile ferait changer le
+          # pack au premier redéploiement venu, y compris subi.
           case "$ENV" in
             dev)
               NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info
-              PACK=main;      PULL=Always ;;
+              PACK=main;      PULL=Always;        PACK_ON=true ;;
             preprod)
               NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info
-              PACK=main;      PULL=Always ;;
+              PACK=main;      PULL=Always;        PACK_ON=false ;;
             prod)
               NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info
-              PACK=v0.1.0;    PULL=IfNotPresent ;;
+              PACK=v0.1.0;    PULL=IfNotPresent;  PACK_ON=false ;;
           esac
 
           {
             echo "environment=$ENV"
             echo "namespace=$NS"
-            echo "set=namespace=$NS,ingress.hosts=$HOSTS,pack.tag=$PACK,pack.pullPolicy=$PULL"
+            echo "set=namespace=$NS,ingress.hosts=$HOSTS,pack.enabled=$PACK_ON,pack.tag=$PACK,pack.pullPolicy=$PULL"
             echo "url=$URL"
           } >> "$GITHUB_OUTPUT"
-          echo "→ $ENV · namespace $NS · $URL · pack mc-content:$PACK" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PACK_ON" = true ]; then
+            echo "→ $ENV · namespace $NS · $URL · pack mc-content:$PACK" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "→ $ENV · namespace $NS · $URL · pack NON publié ici" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   deploy:
     needs: prepare

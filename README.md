@@ -59,9 +59,31 @@ désynchronisation doit se voir en revue, pas se découvrir à la première
 Le pack publié sur `main` de mc-content atteint dev sans intervention : la CI
 de mc-content redémarre ce déploiement en même temps que les serveurs.
 
-L'image `mc-content` est privée. Le Secret `ghcr-pull` doit exister dans le
-namespace — le même que celui de `mc-server`, qui vit dans ces mêmes
-namespaces.
+### Où il est publié, et où il ne l'est pas
+
+| environnement | `/pack/` | ce qui manque |
+|---|---|---|
+| dev | ✅ | — |
+| preprod | ❌ | le Secret `ghcr-pull` dans `mc-preprod` |
+| prod | ❌ | un tag de `mc-content` portant `launcher/` |
+
+L'image `mc-content` est **privée** : sans Secret de tirage, l'initContainer ne
+démarre pas et `helm --atomic` annule tout le déploiement, page comprise. C'est
+pourquoi la publication du pack se coupe par environnement plutôt que
+d'échouer. `mc-dev` et `mc-prod` ont ce Secret parce que `mc-server` y vit ;
+`mc-preprod` n'est occupé que par ce site.
+
+```bash
+kubectl -n mc-preprod create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token>
+```
+
+Puis passer `PACK_ON=true` pour `preprod` dans `.github/workflows/deploy.yml`.
+
+Pour la production, il faut d'abord poser un tag sur `mc-content` : `v0.1.0`
+est antérieur à l'arrivée de `launcher/` dans l'image, et l'initContainer
+échouerait volontairement. Le tag reporté ici doit être le même que
+`environments.prod.content.tag` dans `mc-server`.
 
 ## Déploiement
 
