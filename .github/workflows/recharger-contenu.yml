@@ -1,0 +1,100 @@
+name: Recharger le pack
+
+# Déclenché par mc-content quand il publie une image, et par personne d'autre.
+#
+# Ce site sert le pack du launcher depuis cette image. Sans ce rechargement, les
+# joueurs de dev recevraient encore le pack d'avant pendant que les serveurs
+# tournent déjà sur le nouveau — soit exactement le décalage client/serveur que
+# la mutualisation existe pour éviter.
+#
+# Avant, c'était mc-content qui redémarrait ce déploiement, par SSH, en ayant
+# d'abord vérifié qu'il existe : le dépôt de contenu portait donc un test
+# d'existence sur un déploiement qui ne le regarde pas. Il annonce, maintenant.
+#
+# Un redémarrage suffit, inutile de rejouer un helm upgrade : l'initContainer
+# retire l'image du cache à chaque démarrage (imagePullPolicy Always) et remet
+# le pack en place. Le chart, lui, n'a pas changé.
+
+on:
+  repository_dispatch:
+    types: [contenu-publie]
+
+jobs:
+  env:
+    uses: samflix-mc/.github/.github/workflows/resoudre-env.yml@main
+    with:
+      environnement: ${{ github.event.client_payload.environnement }}
+
+  recharger:
+    needs: env
+    # Rien à recharger là où ce site ne publie pas le pack.
+    if: needs.env.outputs.site-pack == 'true'
+    runs-on: ubuntu-24.04-arm
+    concurrency:
+      group: recharger-pack-${{ needs.env.outputs.environnement }}
+      cancel-in-progress: false
+    steps:
+      - uses: samflix-mc/.github/.github/actions/ssh-k3s@main
+        with:
+          cle: ${{ secrets.SSH_PRIVATE_KEY }}
+          hotes-connus: ${{ secrets.SSH_KNOWN_HOSTS }}
+          utilisateur: ${{ secrets.SSH_USER }}
+          hote: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          arguments: ${{ needs.env.outputs.namespace }}
+          script: |
+            set -eu
+            NS="$1"
+
+            # Le site n'est pas forcément déployé dans cet environnement : il
+            # l'est par ce dépôt, indépendamment du contenu. Le dire et
+            # s'arrêter là vaut mieux qu'échouer pour une absence légitime.
+            if ! kubectl -n "$NS" get deploy/mc-launcher-site >/dev/null 2>&1; then
+              echo "mc-launcher-site absent de $NS, rien à recharger"
+              exit 0
+            fi
+
+            kubectl -n "$NS" rollout restart deploy/mc-launcher-site
+            kubectl -n "$NS" rollout status  deploy/mc-launcher-site --timeout=5m
+
+      # Le pack est bien servi, et voici ce qu'il dit.
+      #
+      # Pas « est-ce le nouveau ? » : rien dans les fichiers servis ne le dirait.
+      # « generated » date du dernier « mc-pack lock », pas de la construction de
+      # l'image, et deux images successives peuvent porter le même verrou. Ce que
+      # cette étape garantit, c'est qu'après le redémarrage le pack répond
+      # toujours — un initContainer en échec laisserait un 404, et
+      # « mc-pack install » deviendrait impossible pour tout le monde.
+      - name: Le pack est-il servi, et que dit-il ?
+        env:
+          NS: ${{ needs.env.outputs.namespace }}
+          # Par une variable, et pas interpolée dans le corps du « run: ». Ce
+          # champ vient de la charge utile du dispatch, donc de l'extérieur :
+          # une expression « ${{ }} » est remplacée textuellement avant que bash
+          # ne lise la ligne, et une image nommée « $(…) » se serait exécutée au
+          # lieu de s'afficher. L'environnement en refait une donnée.
+          IMAGE: ${{ github.event.client_payload.image }}
+        run: |
+          set -eu
+          base="${{ needs.env.outputs.site-url }}/pack/samflix.lock.json"
+          # Chaîne de requête unique : la clé de cache de Cloudflare l'inclut,
+          # cette URL-là n'a jamais été servie, et la réponse vient donc de
+          # l'origine et non du bord. Interroger l'URL nue après un redémarrage
+          # revient à demander au cache de témoigner du pod qu'on vient de
+          # remplacer.
+          url="$base?ci=${{ github.run_id }}-${{ github.run_attempt }}"
+          # « || true » et repli sur la variable, et non « || echo 000 » :
+          # curl écrit déjà « 000 » via -w quand il n'a pas pu joindre l'hôte,
+          # et le echo s'y ajoutait — la variable valait « 000000 », que le
+          # message d'erreur recopiait tel quel.
+          code=$(curl -sS -o /tmp/verrou.json -m 20 -w '%{http_code}' "$url" || true)
+          [ "${code:-000}" = 200 ] || { echo "::error::$base répond ${code:-000}"; exit 1; }
+          {
+            printf 'Pack rechargé sur %s\n\n' "$NS"
+            echo "| | |"
+            echo "|---|---|"
+            printf '| image | `%s` |\n' "${IMAGE:-non précisée}"
+            echo "| NeoForge | $(jq -r '.loader.version' /tmp/verrou.json) |"
+            echo "| mods | $(jq -r '.mods | length' /tmp/verrou.json) |"
+            echo "| généré le | $(jq -r '.generated' /tmp/verrou.json) |"
+          } >> "$GITHUB_STEP_SUMMARY"

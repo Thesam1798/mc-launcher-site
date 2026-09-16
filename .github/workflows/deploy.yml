@@ -1,201 +1,187 @@
 name: Déployer le site
 
-# Correspondance branche → environnement :
-#   dev        → dev      (mc-launcher-dev.ggy.info)
-#   main       → preprod  (mc-launcher-staging.ggy.info)
-#   tag v*     → prod     (mc-launcher.ggy.info)
+# La correspondance référence → environnement n'est plus ici : elle est dans
+# environnements.yaml, au dépôt .github, avec celle des autres dépôts.
 #
-# Le site sert deux choses d'origines différentes : la page, versionnée ici, et
-# le pack du launcher, venu de l'image mc-content. Sa version, et le fait même
-# de le publier, sont donc choisis ici aussi, environnement par environnement,
-# comme le namespace et les hôtes.
+#   main    → dev
+#   dispatch → preprod
+#   tag v*  → prod
 #
-# Un seul niveau de sous-domaine, et ce n'est pas un choix esthétique : le
-# certificat public de Cloudflare ne couvre que « ggy.info » et « *.ggy.info ».
-# Tout nom à deux niveaux — preprod.mc-launcher.ggy.info, mc-launcher.staging
-# .ggy.info — échoue en TLS côté visiteur, même si le certificat d'origine,
-# lui, couvre *.dev et *.staging. Les couvrir au bord demanderait Advanced
-# Certificate Manager, payant.
+# Ce n'est plus tout à fait ce qu'elle était ici : « main » déployait la
+# préproduction, et une branche « dev » la dev. La règle est désormais la même
+# pour les quatre dépôts — pousser sur main avait quatre effets différents selon
+# le dépôt, ce qui n'aide personne. La préproduction se demande, parce qu'une
+# répétition se décide.
 #
-# La prod n'est jamais atteinte par un simple push : il faut poser un tag, ce
-# que toi seul peux faire. C'est la barrière d'approbation du pauvre, les
-# règles de protection d'environnement étant réservées au plan Enterprise.
+# La prod n'est jamais atteinte par un push : il faut poser un tag, ce que toi
+# seul peux faire. C'est la barrière d'approbation du pauvre, les règles de
+# protection d'environnement étant réservées au plan Enterprise.
+#
+# Les hôtes, le namespace, et le fait même de publier /pack/ viennent tous de la
+# table. Un seul niveau de sous-domaine, et ce n'est pas un choix esthétique :
+# le certificat public de Cloudflare ne couvre que « ggy.info » et
+# « *.ggy.info ».
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     paths:
       - "chart/**"
+      - "src/**"
       - ".github/workflows/deploy.yml"
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      environment:
+      environnement:
         description: Environnement cible
         type: choice
         options: [dev, preprod, prod]
-        default: dev
+        default: preprod
 
 jobs:
-  prepare:
-    runs-on: ubuntu-24.04-arm
-    outputs:
-      environment: ${{ steps.map.outputs.environment }}
-      namespace: ${{ steps.map.outputs.namespace }}
-      set: ${{ steps.map.outputs.set }}
-      url: ${{ steps.map.outputs.url }}
-      pack: ${{ steps.map.outputs.pack }}
-    steps:
-      - id: map
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ENV="${{ inputs.environment }}"
-          elif [ "${{ github.ref_type }}" = "tag" ]; then
-            ENV=prod
-          elif [ "${{ github.ref_name }}" = "dev" ]; then
-            ENV=dev
-          else
-            ENV=preprod
-          fi
+  env:
+    uses: samflix-mc/.github/.github/workflows/resoudre-env.yml@main
+    with:
+      environnement: ${{ inputs.environnement }}
 
-          # PACK est le tag de l'image mc-content dont ce site publie /pack/.
-          # PACK_ON dit si ce site le publie tout court.
-          #
-          # Dev et preprod suivent « main » : ce sont les environnements où l'on
-          # essaie, et le pack y suit le contenu comme les serveurs le font.
-          # Preprod n'a pas de serveur Minecraft derrière lui, ce qui ne change
-          # rien ici — le launcher, lui, distingue bien ses environnements, et
-          # une préproduction qui ne servirait pas de pack ne préparerait rien.
-          #
-          # Prod attend, et c'est le seul « false » de ce fichier : aucun tag de
-          # mc-content ne porte encore launcher/, le v0.1.0 lui étant antérieur.
-          # L'initContainer échouerait volontairement, ce qui est le
-          # comportement voulu mais un piège inutile à armer d'avance. Pour
-          # l'activer : poser un tag sur mc-content, le reporter ici en PACK, et
-          # le faire correspondre à environments.prod.content.tag dans
-          # mc-server — c'est là que se joue la concordance entre ce que le
-          # client charge et ce que les serveurs installent.
-          #
-          # Jamais « main » en production : un tag mobile ferait changer le pack
-          # au premier redéploiement venu, y compris subi.
-          case "$ENV" in
-            dev)
-              NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info
-              PACK=main;      PULL=Always;        PACK_ON=true ;;
-            preprod)
-              NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info
-              PACK=main;      PULL=Always;        PACK_ON=true ;;
-            prod)
-              NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info
-              PACK=v0.1.0;    PULL=IfNotPresent;  PACK_ON=false ;;
-          esac
-
-          {
-            echo "environment=$ENV"
-            echo "namespace=$NS"
-            echo "set=namespace=$NS,ingress.hosts=$HOSTS,pack.enabled=$PACK_ON,pack.tag=$PACK,pack.pullPolicy=$PULL"
-            echo "url=$URL"
-            echo "pack=$PACK_ON"
-          } >> "$GITHUB_OUTPUT"
-          if [ "$PACK_ON" = true ]; then
-            echo "→ $ENV · namespace $NS · $URL · pack mc-content:$PACK" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "→ $ENV · namespace $NS · $URL · pack NON publié ici" >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-  # L'image mc-content est privée, et son tirage s'autorise par un Secret qui
-  # vit dans le namespace. mc-dev et mc-prod l'ont parce que mc-server y vit ;
-  # mc-preprod n'est occupé que par ce site et ne l'avait pas. L'initContainer y
-  # restait en ImagePullBackOff, et « helm --atomic » annulait tout le
-  # déploiement — la page avec.
+  # La page est construite ici, et plus à la main avant de committer.
   #
-  # Ce job garantit sa présence avant de déployer. Il ne fabrique aucun
-  # identifiant et n'en fait transiter aucun par la CI : il recopie celui qui
-  # existe déjà, depuis un namespace voisin, de nœud à nœud. Idempotent, et sans
-  # effet quand le Secret est là.
-  #
-  # Il vit ici plutôt que dans l'infrastructure parce que c'est ici que le
-  # besoin naît : ce site est le seul à tirer une image privée dans un namespace
-  # que lui seul occupe.
-  amorcer:
-    needs: prepare
-    if: needs.prepare.outputs.pack == 'true'
+  # chart/files/ était versionné, et rien ne garantissait qu'il corresponde à
+  # src/ : le déclencheur ne regardait même pas src/, donc modifier le gabarit
+  # sans relancer la construction ne déployait rien, en silence.
+  construire:
     runs-on: ubuntu-24.04-arm
     steps:
-      - name: Préparer la clé SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: src/pnpm-lock.yaml
+
+      - name: Construire la page
+        working-directory: src
         run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          pnpm install --frozen-lockfile
+          node build.mjs
 
-      - name: Garantir le Secret de tirage dans le namespace
-        env:
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          NS: ${{ needs.prepare.outputs.namespace }}
+      - name: Vérifier que la construction a produit quelque chose
         run: |
-          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
-            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" "sh -s $NS" <<'DISTANT'
-          set -eu
-          NS="$1"
+          # Un chart sans page rend un ConfigMap vide et un site en 404, sans
+          # que rien n'échoue : le pod démarre, les sondes passent, et /health
+          # répond. Mieux vaut s'arrêter ici.
+          [ -f chart/files/index.html ] || { echo "::error::index.html manquant après construction"; exit 1; }
+          ls -l chart/files >> "$GITHUB_STEP_SUMMARY"
 
-          # helm crée bien le namespace, mais plus tard : le Secret doit y être
-          # avant que le premier pod tente son tirage.
-          #
-          # Créé seulement s'il manque. Un « apply » inconditionnel poserait
-          # l'annotation last-applied-configuration sur un namespace existant,
-          # que ce workflow n'a pas créé et n'a pas à s'approprier.
-          kubectl get namespace "$NS" >/dev/null 2>&1 \
-            || kubectl create namespace "$NS" >/dev/null
-
-          if kubectl -n "$NS" get secret ghcr-pull >/dev/null 2>&1; then
-            echo "ghcr-pull deja present dans $NS"
-            exit 0
-          fi
-
-          for source in mc-dev mc-prod; do
-            if [ "$source" = "$NS" ]; then
-              continue
-            fi
-            if ! kubectl -n "$source" get secret ghcr-pull >/dev/null 2>&1; then
-              continue
-            fi
-            kubectl -n "$source" get secret ghcr-pull \
-              -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > /tmp/ghcr-pull.json
-            kubectl -n "$NS" create secret generic ghcr-pull \
-              --type=kubernetes.io/dockerconfigjson \
-              --from-file=.dockerconfigjson=/tmp/ghcr-pull.json \
-              --dry-run=client -o yaml | kubectl apply -f - >/dev/null
-            rm -f /tmp/ghcr-pull.json
-            echo "ghcr-pull recopie depuis $source vers $NS"
-            exit 0
-          done
-
-          echo "aucun ghcr-pull a recopier : le creer une fois a la main" >&2
-          exit 1
-          DISTANT
-
-      - run: echo "Secret de tirage garanti dans ${{ needs.prepare.outputs.namespace }}" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chart
+          path: chart
+          if-no-files-found: error
+          retention-days: 1
 
   deploy:
-    needs: [prepare, amorcer]
-    # « always() » avec un contrôle explicite : sans lui, un amorçage sauté —
-    # ce qui arrive quand le pack n'est pas publié dans cet environnement —
-    # sauterait aussi le déploiement, et la page ne partirait plus du tout.
-    if: always() && needs.prepare.result == 'success' && needs.amorcer.result != 'failure'
+    needs: [env, construire]
     uses: samflix-mc/.github/.github/workflows/deploy-helm.yml@main
     with:
       chart-path: chart
       release: mc-launcher-site
-      namespace: ${{ needs.prepare.outputs.namespace }}
-      environment: ${{ needs.prepare.outputs.environment }}
-      set: ${{ needs.prepare.outputs.set }}
-      verify-url: ${{ needs.prepare.outputs.url }}
+      namespace: ${{ needs.env.outputs.namespace }}
+      environment: ${{ needs.env.outputs.environnement }}
+      artefact-chart: chart
+      set: >-
+        namespace=${{ needs.env.outputs.namespace }},ingress.hosts=${{ needs.env.outputs.site-hotes }},pack.enabled=${{ needs.env.outputs.site-pack }},pack.tag=${{ needs.env.outputs.contenu-tag }},pack.pullPolicy=${{ needs.env.outputs.contenu-pull }}
+      verify-url: ${{ needs.env.outputs.site-url }}
+      # L'image de contenu est privée, et son tirage s'autorise par un Secret
+      # qui vit dans le namespace. Inutile de l'exiger là où le pack n'est pas
+      # publié : le chart n'y tire alors aucune image privée.
+      pull-secret: ${{ needs.env.outputs.site-pack == 'true' && needs.env.outputs.pull-secret || '' }}
     secrets: inherit
+
+  # Le pack est servi depuis l'image de contenu, pas depuis ce dépôt. Une page
+  # qui répond 200 ne dit donc rien de lui.
+  verifier-pack:
+    needs: [env, deploy]
+    if: needs.env.outputs.site-pack == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Le pack est-il servi, et frais ?
+        run: |
+          set -eu
+          base="${{ needs.env.outputs.site-url }}/pack"
+          mauvais=0
+
+          {
+            echo "| fichier | code | cache-control | cf-cache-status | octets |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Le dernier exemplaire d'un en-tête, insensible à la casse. Le repli
+          # se fait ensuite sur la variable et non sur le tube : « cut » y a le
+          # dernier mot et sort 0 même quand « grep » n'a rien trouvé, si bien
+          # qu'un « || echo » accroché au tube n'était jamais atteint et que
+          # l'en-tête absent se lisait comme une chaîne vide.
+          entete() { printf '%s' "$entetes" | tr -d '\r' | grep -i "^$1:" | cut -d' ' -f2- | tail -1; }
+
+          for f in samflix.json samflix.lock.json; do
+            # Une chaîne de requête unique par exécution. La clé de cache de
+            # Cloudflare l'inclut, cette URL-là n'a donc jamais été servie et la
+            # réponse vient forcément de l'origine.
+            #
+            # Sans elle, ce contrôle se retourne contre lui-même dans le seul
+            # cas qu'il existe pour détecter : le jour où /pack/ repart avec le
+            # « max-age » que static-web-server pose d'office sur le JSON,
+            # Cloudflare se met à le garder — et les exécutions suivantes
+            # relisent depuis le bord un en-tête que l'origine n'envoie plus.
+            url="$base/$f?ci=${{ github.run_id }}-${{ github.run_attempt }}"
+
+            # « || true » : curl sort non nul quand il n'a pas pu joindre
+            # l'hôte, l'affectation reprend ce code, et « set -e » tuait
+            # l'étape avant le ::error:: comme avant la ligne du résumé. Le
+            # seul cas où ce contrôle a quelque chose à raconter était aussi le
+            # seul où il se taisait. deploy-helm.yml porte la même correction.
+            # Effacé d'abord : sur un échec de résolution curl n'écrit rien,
+            # et la taille relevée plus bas serait celle que la tentative
+            # précédente a laissée.
+            rm -f "/tmp/$f"
+            entetes=$(curl -sS -D - -o "/tmp/$f" -m 20 "$url" || true)
+            # Le dernier statut, et non le premier : un 103 ou une redirection
+            # laisse deux blocs d'en-têtes dans le vidage, et « head -1 »
+            # relèverait le code du premier. Vaut 0 quand il n'y en a aucun.
+            code=$(printf '%s' "$entetes" | tr -d '\r' | awk '/^HTTP\//{c=$2} END{print c+0}')
+            cache=$(entete cache-control); cache=${cache:-"(absent)"}
+            bord=$(entete cf-cache-status); bord=${bord:-"(absent)"}
+            # Le « 2>/dev/null » d'un « wc -c < fichier » ne sert à rien : c'est
+            # le shell qui échoue sur la redirection, avant wc, et il le dit sur
+            # sa propre sortie d'erreur.
+            if [ -f "/tmp/$f" ]; then taille=$(wc -c < "/tmp/$f"); else taille=0; fi
+            echo "| \`$f\` | $code | \`$cache\` | $bord | $taille |" >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$code" != 200 ]; then
+              echo "::error::$base/$f répond $code"
+              mauvais=1
+              continue
+            fi
+
+            # Un pack mis en cache est un pack périmé, et un pack périmé coûte
+            # une éjection à la connexion. Ce dépôt a déjà vu un 403 transitoire
+            # rester un an dans le cache de Cloudflare — le CSS s'en protège par
+            # son nom haché, le pack ne le peut pas : il garde le même nom à vie,
+            # c'est ce qui permet au launcher d'aller le chercher sans rien
+            # savoir.
+            #
+            # Après le code seulement : un fichier qu'on n'a pas obtenu n'a pas
+            # d'en-tête, et signaler en plus qu'il manque le bon « cache-control »
+            # noierait la cause sous sa conséquence.
+            case "$cache" in
+              *no-cache*) ;;
+              *) echo "::error::$f est servi avec « $cache » au lieu de no-cache"; mauvais=1 ;;
+            esac
+          done
+
+          [ "$mauvais" = 0 ]

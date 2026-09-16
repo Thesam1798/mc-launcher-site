@@ -2,6 +2,20 @@
 # contenu est versionné avec le chart. La CSP du cluster étant en
 # script-src/style-src 'self', le CSS est compilé à l'avance (voir src/) et
 # servi depuis le même domaine — aucun CDN externe.
+#
+# files/ n'est pas versionné : il est construit par src/build.mjs, déposé en
+# artefact, et redescendu par-dessus le checkout au moment de déployer. Autant
+# d'occasions de n'en récupérer rien — artefact expiré, téléchargement sauté,
+# construction qui n'a rien écrit. Le chart, lui, rendait sans broncher : un
+# ConfigMap vide, aucun volumeMount, et un SERVER_ROOT sans le moindre fichier.
+# Le pod démarrait, /health répondait, les sondes passaient, « helm --atomic »
+# concluait au succès et ne rétractait donc rien. Seul le curl d'après-coup
+# voyait le 404 — sur une release déjà en place, et pour vingt-quatre heures de
+# cache navigateur. Échouer ici coûte un déploiement annulé avant d'avoir
+# touché au cluster.
+{{- if not (.Files.Get "files/index.html") }}
+{{- fail "chart/files/index.html est absent ou vide : le chart refuse de déployer un site sans page. Le reconstruire avec « cd src && pnpm install --frozen-lockfile && node build.mjs », ou vérifier que l'artefact « chart » a bien été redescendu." }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

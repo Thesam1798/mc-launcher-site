@@ -16,7 +16,12 @@
 // « cache-control: max-age=31536000 » sur les fichiers d'apparence statique,
 // y compris sur ses pages d'erreur. Un 403 transitoire s'est retrouvé mis en
 // cache un an par Cloudflare sur /style.css.
-import { readFileSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
+//
+// Ce nom est aussi ce qui donne au CSS le droit d'être mis en cache : le chart
+// refuse le cache partout ailleurs, et ne l'accorde qu'à /style.*, dont l'URL
+// change avec le contenu. Changer ce nommage, c'est changer la route Traefik
+// qui va avec — voir chart/templates/ingressroute.yaml.
+import { readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
@@ -45,6 +50,11 @@ execFileSync("./node_modules/.bin/tailwindcss", ["-i", "input.css", "-o", PRE_CS
 // --- 3. Empreinte et écriture ------------------------------------------------
 const css = readFileSync(PRE_CSS);
 const cssName = `style.${createHash("sha256").update(css).digest("hex").slice(0, 10)}.css`;
+
+// Le répertoire de sortie n'est plus versionné : il est généré, et git
+// l'ignore. Un clone frais — celui de la CI, à chaque exécution — ne le porte
+// donc pas, et readdirSync échouerait en ENOENT avant d'avoir rien écrit.
+mkdirSync(OUT_DIR, { recursive: true });
 
 for (const f of readdirSync(OUT_DIR)) {
   if (/^style\..*\.css$/.test(f) && f !== cssName) unlinkSync(`${OUT_DIR}/${f}`);
