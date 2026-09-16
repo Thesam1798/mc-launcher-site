@@ -44,6 +44,7 @@ jobs:
       namespace: ${{ steps.map.outputs.namespace }}
       set: ${{ steps.map.outputs.set }}
       url: ${{ steps.map.outputs.url }}
+      pack: ${{ steps.map.outputs.pack }}
     steps:
       - id: map
         run: |
@@ -57,45 +58,33 @@ jobs:
             ENV=preprod
           fi
 
-          # PACK est le tag de l'image mc-content dont ce site publie
-          # /pack/. Il doit désigner, en production, le même tag que
-          # « environments.prod.content.tag » dans mc-server : c'est là que se
-          # joue la concordance entre ce que le client charge et ce que les
-          # serveurs installent. Écrit à la main aux deux endroits plutôt que
-          # déduit — une désynchronisation doit se voir en revue, pas se
-          # découvrir à la première éjection d'un joueur.
+          # PACK est le tag de l'image mc-content dont ce site publie /pack/.
+          # PACK_ON dit si ce site le publie tout court.
           #
-          # Jamais « main » en production : un tag mobile ferait changer le
-          # pack au premier redéploiement venu, y compris subi.
-          # PACK_ON dit si ce site publie /pack/ dans cet environnement. Les
-          # deux « false » ci-dessous ne sont pas des oublis, chacun attend une
-          # chose précise :
+          # Dev et preprod suivent « main » : ce sont les environnements où l'on
+          # essaie, et le pack y suit le contenu comme les serveurs le font.
+          # Preprod n'a pas de serveur Minecraft derrière lui, ce qui ne change
+          # rien ici — le launcher, lui, distingue bien ses environnements, et
+          # une préproduction qui ne servirait pas de pack ne préparerait rien.
           #
-          #   preprod — le Secret ghcr-pull n'existe pas dans mc-preprod.
-          #     L'image mc-content est privée ; sans lui l'initContainer ne
-          #     démarre pas et helm --atomic annule tout le déploiement, page
-          #     comprise. mc-dev et mc-prod l'ont parce que mc-server y vit ;
-          #     mc-preprod n'est occupé que par ce site. Pour l'activer :
-          #       kubectl -n mc-preprod create secret docker-registry ghcr-pull \
-          #         --docker-server=ghcr.io --docker-username=<user> \
-          #         --docker-password=<token>
+          # Prod attend, et c'est le seul « false » de ce fichier : aucun tag de
+          # mc-content ne porte encore launcher/, le v0.1.0 lui étant antérieur.
+          # L'initContainer échouerait volontairement, ce qui est le
+          # comportement voulu mais un piège inutile à armer d'avance. Pour
+          # l'activer : poser un tag sur mc-content, le reporter ici en PACK, et
+          # le faire correspondre à environments.prod.content.tag dans
+          # mc-server — c'est là que se joue la concordance entre ce que le
+          # client charge et ce que les serveurs installent.
           #
-          #   prod — aucun tag de mc-content ne porte encore launcher/. Le
-          #     v0.1.0 est antérieur. Pour l'activer : poser un tag sur
-          #     mc-content, le reporter ici en PACK, et le faire correspondre à
-          #     environments.prod.content.tag dans mc-server — c'est là que se
-          #     joue la concordance entre ce que le client charge et ce que les
-          #     serveurs installent.
-          #
-          # Jamais « main » en production : un tag mobile ferait changer le
-          # pack au premier redéploiement venu, y compris subi.
+          # Jamais « main » en production : un tag mobile ferait changer le pack
+          # au premier redéploiement venu, y compris subi.
           case "$ENV" in
             dev)
               NS=mc-dev;      HOSTS='{mc-launcher-dev.ggy.info}';     URL=https://mc-launcher-dev.ggy.info
               PACK=main;      PULL=Always;        PACK_ON=true ;;
             preprod)
               NS=mc-preprod;  HOSTS='{mc-launcher-staging.ggy.info}'; URL=https://mc-launcher-staging.ggy.info
-              PACK=main;      PULL=Always;        PACK_ON=false ;;
+              PACK=main;      PULL=Always;        PACK_ON=true ;;
             prod)
               NS=mc-prod; HOSTS='{mc-launcher.ggy.info,mc-luncher.ggy.info}'; URL=https://mc-launcher.ggy.info
               PACK=v0.1.0;    PULL=IfNotPresent;  PACK_ON=false ;;
@@ -106,6 +95,7 @@ jobs:
             echo "namespace=$NS"
             echo "set=namespace=$NS,ingress.hosts=$HOSTS,pack.enabled=$PACK_ON,pack.tag=$PACK,pack.pullPolicy=$PULL"
             echo "url=$URL"
+            echo "pack=$PACK_ON"
           } >> "$GITHUB_OUTPUT"
           if [ "$PACK_ON" = true ]; then
             echo "→ $ENV · namespace $NS · $URL · pack mc-content:$PACK" >> "$GITHUB_STEP_SUMMARY"
@@ -113,8 +103,89 @@ jobs:
             echo "→ $ENV · namespace $NS · $URL · pack NON publié ici" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  deploy:
+  # L'image mc-content est privée, et son tirage s'autorise par un Secret qui
+  # vit dans le namespace. mc-dev et mc-prod l'ont parce que mc-server y vit ;
+  # mc-preprod n'est occupé que par ce site et ne l'avait pas. L'initContainer y
+  # restait en ImagePullBackOff, et « helm --atomic » annulait tout le
+  # déploiement — la page avec.
+  #
+  # Ce job garantit sa présence avant de déployer. Il ne fabrique aucun
+  # identifiant et n'en fait transiter aucun par la CI : il recopie celui qui
+  # existe déjà, depuis un namespace voisin, de nœud à nœud. Idempotent, et sans
+  # effet quand le Secret est là.
+  #
+  # Il vit ici plutôt que dans l'infrastructure parce que c'est ici que le
+  # besoin naît : ce site est le seul à tirer une image privée dans un namespace
+  # que lui seul occupe.
+  amorcer:
     needs: prepare
+    if: needs.prepare.outputs.pack == 'true'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Préparer la clé SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Garantir le Secret de tirage dans le namespace
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          NS: ${{ needs.prepare.outputs.namespace }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "$SSH_PORT" \
+            -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" "sh -s $NS" <<'DISTANT'
+          set -eu
+          NS="$1"
+
+          # helm crée bien le namespace, mais plus tard : le Secret doit y être
+          # avant que le premier pod tente son tirage.
+          kubectl create namespace "$NS" --dry-run=client -o yaml \
+            | kubectl apply -f - >/dev/null
+
+          if kubectl -n "$NS" get secret ghcr-pull >/dev/null 2>&1; then
+            echo "ghcr-pull deja present dans $NS"
+            exit 0
+          fi
+
+          for source in mc-dev mc-prod; do
+            if [ "$source" = "$NS" ]; then
+              continue
+            fi
+            if ! kubectl -n "$source" get secret ghcr-pull >/dev/null 2>&1; then
+              continue
+            fi
+            kubectl -n "$source" get secret ghcr-pull \
+              -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > /tmp/ghcr-pull.json
+            kubectl -n "$NS" create secret generic ghcr-pull \
+              --type=kubernetes.io/dockerconfigjson \
+              --from-file=.dockerconfigjson=/tmp/ghcr-pull.json \
+              --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+            rm -f /tmp/ghcr-pull.json
+            echo "ghcr-pull recopie depuis $source vers $NS"
+            exit 0
+          done
+
+          echo "aucun ghcr-pull a recopier : le creer une fois a la main" >&2
+          exit 1
+          DISTANT
+
+      - run: echo "Secret de tirage garanti dans ${{ needs.prepare.outputs.namespace }}" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: [prepare, amorcer]
+    # « always() » avec un contrôle explicite : sans lui, un amorçage sauté —
+    # ce qui arrive quand le pack n'est pas publié dans cet environnement —
+    # sauterait aussi le déploiement, et la page ne partirait plus du tout.
+    if: always() && needs.prepare.result == 'success' && needs.amorcer.result != 'failure'
     uses: samflix-mc/.github/.github/workflows/deploy-helm.yml@main
     with:
       chart-path: chart

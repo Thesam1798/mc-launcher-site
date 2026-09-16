@@ -59,31 +59,31 @@ désynchronisation doit se voir en revue, pas se découvrir à la première
 Le pack publié sur `main` de mc-content atteint dev sans intervention : la CI
 de mc-content redémarre ce déploiement en même temps que les serveurs.
 
-### Où il est publié, et où il ne l'est pas
+### Où il est publié
 
-| environnement | `/pack/` | ce qui manque |
+| environnement | `/pack/` | version du pack |
 |---|---|---|
-| dev | ✅ | — |
-| preprod | ❌ | le Secret `ghcr-pull` dans `mc-preprod` |
-| prod | ❌ | un tag de `mc-content` portant `launcher/` |
+| dev | ✅ | `mc-content:main` |
+| preprod | ✅ | `mc-content:main` |
+| prod | ⏳ | attend un tag de `mc-content` portant `launcher/` |
 
-L'image `mc-content` est **privée** : sans Secret de tirage, l'initContainer ne
-démarre pas et `helm --atomic` annule tout le déploiement, page comprise. C'est
-pourquoi la publication du pack se coupe par environnement plutôt que
-d'échouer. `mc-dev` et `mc-prod` ont ce Secret parce que `mc-server` y vit ;
-`mc-preprod` n'est occupé que par ce site.
+Preprod le publie bien qu'aucun serveur Minecraft ne tourne derrière elle : le
+launcher distingue ses environnements, et une préproduction qui ne servirait
+pas de pack ne préparerait rien.
 
-```bash
-kubectl -n mc-preprod create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token>
-```
-
-Puis passer `PACK_ON=true` pour `preprod` dans `.github/workflows/deploy.yml`.
+**Le Secret de tirage s'amorce tout seul.** L'image `mc-content` est privée, et
+son tirage s'autorise par un Secret qui vit dans le namespace. `mc-dev` et
+`mc-prod` l'ont parce que `mc-server` y vit ; `mc-preprod` n'est occupé que par
+ce site et ne l'avait pas — l'initContainer y restait en `ImagePullBackOff`, et
+`helm --atomic` annulait tout le déploiement, la page avec. Le job `amorcer` du
+workflow le recopie désormais depuis un namespace voisin avant de déployer. Il
+ne fabrique aucun identifiant et n'en fait transiter aucun par la CI : la copie
+se fait de nœud à nœud, et reste sans effet quand le Secret est déjà là.
 
 Pour la production, il faut d'abord poser un tag sur `mc-content` : `v0.1.0`
 est antérieur à l'arrivée de `launcher/` dans l'image, et l'initContainer
-échouerait volontairement. Le tag reporté ici doit être le même que
-`environments.prod.content.tag` dans `mc-server`.
+échouerait volontairement. Le tag reporté dans le workflow doit être le même
+que `environments.prod.content.tag` dans `mc-server`.
 
 ## Déploiement
 
