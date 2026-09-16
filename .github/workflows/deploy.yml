@@ -148,8 +148,12 @@ jobs:
 
           # helm crée bien le namespace, mais plus tard : le Secret doit y être
           # avant que le premier pod tente son tirage.
-          kubectl create namespace "$NS" --dry-run=client -o yaml \
-            | kubectl apply -f - >/dev/null
+          #
+          # Créé seulement s'il manque. Un « apply » inconditionnel poserait
+          # l'annotation last-applied-configuration sur un namespace existant,
+          # que ce workflow n'a pas créé et n'a pas à s'approprier.
+          kubectl get namespace "$NS" >/dev/null 2>&1 \
+            || kubectl create namespace "$NS" >/dev/null
 
           if kubectl -n "$NS" get secret ghcr-pull >/dev/null 2>&1; then
             echo "ghcr-pull deja present dans $NS"
